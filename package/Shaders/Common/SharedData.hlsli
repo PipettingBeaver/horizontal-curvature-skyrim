@@ -487,6 +487,14 @@ namespace SharedData
 		float2 pad1;
 	};
 
+	struct HorizontalCurvatureSettings
+	{
+		float CurvatureStrength;
+		float InnerRadiusCutoff;
+		float ElevationScaleFactor;
+		float SeaLevelOffset;
+	};
+
 	cbuffer FeatureData : register(b6)
 	{
 		GrassLightingSettings grassLightingSettings;
@@ -510,6 +518,7 @@ namespace SharedData
 		SkinData skinData;
 		HorizonFixSettings horizonFixSettings;
 		RainRefractionSettings rainRefractionSettings;
+		HorizontalCurvatureSettings horizontalCurvatureSettings;
 	};
 
 	Texture2D<float4> DepthTexture : register(t17);

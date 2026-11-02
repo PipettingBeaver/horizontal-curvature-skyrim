@@ -17,6 +17,7 @@
 #include "Features/HDRDisplay.h"
 #include "Features/HairSpecular.h"
 #include "Features/HorizonFix.h"
+#include "Features/HorizontalCurvature.h"
 #include "Features/IBL.h"
 #include "Features/InteriorSun.h"
 #include "Features/LODBlending.h"
@@ -104,6 +105,7 @@ namespace globals
 		Skin skin{};
 		SceneManager sceneManager{};
 		PostProcessing postProcessing{};
+		HorizontalCurvature horizontalCurvature{};
 
 		namespace llf
 		{

@@ -47,6 +47,7 @@ file_common_defines:
             - CLOUD_SHADOWS
             - WATER_EFFECTS
             - SSS
+            - HORIZONTAL_CURVATURE
         VSHADER:
             - IBL
             - SCREEN_SPACE_SHADOWS
@@ -60,6 +61,7 @@ file_common_defines:
             - CLOUD_SHADOWS
             - WATER_EFFECTS
             - SSS
+            - HORIZONTAL_CURVATURE
         CSHADER: []
     RunGrass.hlsl:
         PSHADER: []
@@ -178,6 +180,7 @@ file_common_defines:
             - SSGI
             - EXTENDED_MATERIALS
             - EXTENDED_TRANSLUCENCY
+            - HORIZONTAL_CURVATURE
         VSHADER:
             - TERRAIN_SHADOWS
             - CS_HAIR
@@ -195,6 +198,7 @@ file_common_defines:
             - SSGI
             - EXTENDED_MATERIALS
             - EXTENDED_TRANSLUCENCY
+            - HORIZONTAL_CURVATURE
         CSHADER: []
     Water.hlsl:
         PSHADER:
@@ -2090,6 +2094,7 @@ shaders:
                   - CLOUD_SHADOWS
                   - WATER_EFFECTS
                   - SSS
+                  - HORIZONTAL_CURVATURE
               entries:
                   - entry: DistantTree:Pixel:10100
                     defines:
@@ -2127,6 +2132,7 @@ shaders:
                   - CLOUD_SHADOWS
                   - WATER_EFFECTS
                   - SSS
+                  - HORIZONTAL_CURVATURE
               entries:
                   - entry: DistantTree:Vertex:1
                     defines:
@@ -14190,6 +14196,7 @@ shaders:
                   - SSGI
                   - EXTENDED_MATERIALS
                   - EXTENDED_TRANSLUCENCY
+                  - HORIZONTAL_CURVATURE
               entries:
                   - entry: Lighting:Pixel:4100001
                     defines:
@@ -17132,6 +17139,7 @@ shaders:
                   - SSGI
                   - EXTENDED_MATERIALS
                   - EXTENDED_TRANSLUCENCY
+                  - HORIZONTAL_CURVATURE
               entries:
                   - entry: Lighting:Vertex:1
                     defines:

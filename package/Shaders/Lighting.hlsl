@@ -16,6 +16,10 @@
 #include "Common/Skinned.hlsli"
 #include "Common/Triplanar.hlsli"
 
+#if defined(HORIZONTAL_CURVATURE)
+#	include "HorizontalCurvature/HorizontalCurvature.hlsli"
+#endif
+
 #if defined(FACEGEN) || defined(FACEGEN_RGB_TINT)
 #	define SKIN
 #endif
@@ -184,6 +188,12 @@ VS_OUTPUT main(VS_INPUT input)
 	precise float4x4 modelView = mul(ViewProj, world4x4);
 	float4 viewPos = mul(modelView, inputPosition);
 #	endif  // SKINNED
+
+#	if defined(HORIZONTAL_CURVATURE) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
+	worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy);
+	previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy);
+	viewPos = mul(ViewProj, worldPosition);
+#	endif
 
 	vsout.Position = viewPos;
 

@@ -1,0 +1,27 @@
+name: "Fork Build"
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - horizontal-curvature
+            - "feat/**"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build:
+        name: Build
+        uses: ./.github/workflows/_shared-build.yaml
+        with:
+            ref: ${{ github.ref }}
+            repository: ${{ github.repository }}
+            run-cpp: true
+            run-shader-validation: true
+            cmake-preset: ALL
+            cache-key-suffix: fork

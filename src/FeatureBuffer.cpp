@@ -11,6 +11,7 @@
 #include "Features/GrassLighting.h"
 #include "Features/HairSpecular.h"
 #include "Features/HorizonFix.h"
+#include "Features/HorizontalCurvature.h"
 #include "Features/IBL.h"
 #include "Features/LODBlending.h"
 #include "Features/LightLimitFix.h"
@@ -66,5 +67,6 @@ std::pair<unsigned char*, size_t> GetFeatureBufferData(bool a_inWorld)
 		globals::features::truePBR.settings,
 		globals::features::skin.GetCommonBufferData(),
 		globals::features::horizonFix.GetCommonBufferData(),
-		globals::features::rainRefraction.GetCommonBufferData());
+		globals::features::rainRefraction.GetCommonBufferData(),
+		globals::features::horizontalCurvature.GetCommonBufferData());
 }

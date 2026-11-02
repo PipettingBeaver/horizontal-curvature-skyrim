@@ -11,6 +11,7 @@ struct GrassLighting;
 struct GrassOptimizations;
 struct HairSpecular;
 struct HorizonFix;
+struct HorizontalCurvature;
 struct IBL;
 struct LightLimitFix;
 struct LinearLighting;
@@ -138,6 +139,7 @@ namespace globals
 		extern Skin skin;
 		extern SceneManager sceneManager;
 		extern PostProcessing postProcessing;
+		extern HorizontalCurvature horizontalCurvature;
 
 	}
 

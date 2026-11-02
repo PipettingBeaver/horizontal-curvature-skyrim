@@ -17,6 +17,7 @@
 #include "Features/HDRDisplay.h"
 #include "Features/HairSpecular.h"
 #include "Features/HorizonFix.h"
+#include "Features/HorizontalCurvature.h"
 #include "Features/IBL.h"
 #include "Features/InteriorSun.h"
 #include "Features/LODBlending.h"
@@ -278,7 +279,8 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		&globals::features::exponentialHeightFog,
 		&globals::features::hdrDisplay,
 		&globals::features::skin,
-		&globals::features::postProcessing
+		&globals::features::postProcessing,
+		&globals::features::horizontalCurvature
 	};
 
 	return features;

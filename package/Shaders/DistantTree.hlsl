@@ -8,6 +8,9 @@
 #include "Common/Permutation.hlsli"
 #include "Common/Random.hlsli"
 #include "Common/SharedData.hlsli"
+#if defined(HORIZONTAL_CURVATURE)
+#	include "HorizontalCurvature/HorizontalCurvature.hlsli"
+#endif
 #if !defined(DYNAMIC_CUBEMAPS) && defined(IBL)
 #	undef IBL
 #endif
@@ -67,8 +70,17 @@ VS_OUTPUT main(VS_INPUT input)
 	vsout.Depth.xy = viewPosition.zw;
 	vsout.Depth.zw = input.InstanceData2.zw;
 #	else
-	vsout.WorldPosition = mul(World, finalModelPosition);
-	vsout.PreviousWorldPosition = mul(PreviousWorld, finalModelPosition);
+	float4 worldPosition = mul(World, finalModelPosition);
+	float4 previousWorldPosition = mul(PreviousWorld, finalModelPosition);
+
+#		if defined(HORIZONTAL_CURVATURE)
+	worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy);
+	previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy);
+	viewPosition = mul(FrameBuffer::CameraViewProj, worldPosition);
+#		endif
+
+	vsout.WorldPosition = worldPosition;
+	vsout.PreviousWorldPosition = previousWorldPosition;
 	vsout.ViewPosition = viewPosition;
 #	endif  // RENDER_DEPTH
 
