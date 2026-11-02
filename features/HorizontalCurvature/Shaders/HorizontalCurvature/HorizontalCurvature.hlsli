@@ -10,11 +10,11 @@ namespace HorizontalCurvature
 {
 	float ComputeDrop(float2 cameraRelativeXY)
 	{
-		const SharedData::HorizontalCurvatureSettings s = SharedData::horizontalCurvatureSettings;
-		const float cameraHeight = max(0.0f, FrameBuffer::CameraPosAdjust.z - s.SeaLevelOffset);
-		const float dynamicCutoff = max(0.0f, s.InnerRadiusCutoff) + max(0.0f, s.ElevationScaleFactor) * sqrt(cameraHeight);
+		const float cameraHeight = max(0.0f, FrameBuffer::CameraPosAdjust.z - SharedData::horizontalCurvatureSettings.SeaLevelOffset);
+		const float dynamicCutoff = max(0.0f, SharedData::horizontalCurvatureSettings.InnerRadiusCutoff) +
+		                            max(0.0f, SharedData::horizontalCurvatureSettings.ElevationScaleFactor) * sqrt(cameraHeight);
 		const float distanceOverCutoff = max(0.0f, length(cameraRelativeXY) - dynamicCutoff);
-		return max(0.0f, s.CurvatureStrength) * distanceOverCutoff * distanceOverCutoff;
+		return max(0.0f, SharedData::horizontalCurvatureSettings.CurvatureStrength) * distanceOverCutoff * distanceOverCutoff;
 	}
 
 }
