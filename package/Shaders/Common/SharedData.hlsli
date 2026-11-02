@@ -493,6 +493,10 @@ namespace SharedData
 		float InnerRadiusCutoff;
 		float ElevationScaleFactor;
 		float SeaLevelOffset;
+		uint Enable;
+		uint DebugColor;
+		float DebugHue;
+		float pad0;
 	};
 
 	cbuffer FeatureData : register(b6)

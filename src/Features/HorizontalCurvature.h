@@ -28,19 +28,33 @@ struct HorizontalCurvature : Feature
 				T("feature.horizontal_curvature.key_feature_3", "Elevation-aware horizon extension for high vantage points") } };
 	}
 
-	struct alignas(16) Settings
+	struct Settings
 	{
-		float CurvatureStrength = 2.5e-7f;   ///< Quadratic drop coefficient k.
-		float InnerRadiusCutoff = 60000.0f;  ///< Game units from the camera before displacement begins.
-		float ElevationScaleFactor = 0.0f;   ///< Extends the deadzone by this factor times sqrt(camera height).
-		float SeaLevelOffset = 0.0f;         ///< World-space Z treated as sea level for the elevation term.
+		bool Enable = true;                 ///< Runtime effect switch; does not recompile shaders.
+		bool DebugColor = true;             ///< Tint LOD by the computed curvature.
+		float DebugHue = 0.35f;             ///< Base hue of the debug tint (0-1).
+		float CurvatureStrength = 5.0e-6f;  ///< Quadratic drop coefficient k.
+		float InnerRadiusCutoff = 1000.0f;  ///< Game units from the camera before displacement begins.
+		float ElevationScaleFactor = 0.0f;  ///< Extends the deadzone by this factor times sqrt(camera height).
+		float SeaLevelOffset = 0.0f;        ///< World-space Z treated as sea level for the elevation term.
 	};
-	static_assert(sizeof(Settings) % 16 == 0, "HorizontalCurvature::Settings must be 16-byte aligned");
-
 	Settings settings;
 
 	/** @brief Feature buffer data matching HorizontalCurvatureSettings in SharedData.hlsli. */
-	Settings GetCommonBufferData() const { return settings; }
+	struct alignas(16) PerFrame
+	{
+		float CurvatureStrength;
+		float InnerRadiusCutoff;
+		float ElevationScaleFactor;
+		float SeaLevelOffset;
+		uint32_t Enable;
+		uint32_t DebugColor;
+		float DebugHue;
+		float pad0;
+	};
+	static_assert(sizeof(PerFrame) % 16 == 0, "HorizontalCurvature::PerFrame must be 16-byte aligned");
+
+	PerFrame GetCommonBufferData() const;
 
 	virtual void RestoreDefaultSettings() override;
 	virtual void LoadSettings(json& o_json) override;

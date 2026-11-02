@@ -135,6 +135,8 @@ cbuffer VS_PerFrame : register(b12)
 #	if defined(SKINNED)
 	float3 BonesPivot : packoffset(c40);
 	float3 PreviousBonesPivot : packoffset(c41);
+#	else
+	float4 CameraPosAdjust : packoffset(c40);
 #	endif  // SKINNED
 };
 
@@ -189,9 +191,9 @@ VS_OUTPUT main(VS_INPUT input)
 	float4 viewPos = mul(modelView, inputPosition);
 #	endif  // SKINNED
 
-#	if defined(HORIZONTAL_CURVATURE) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
-	worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy);
-	previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy);
+#	if defined(HORIZONTAL_CURVATURE) && !defined(SKINNED) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
+	worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy, CameraPosAdjust.z);
+	previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy, CameraPosAdjust.z);
 	viewPos = mul(ViewProj, worldPosition);
 #	endif
 
@@ -3384,6 +3386,13 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 #		undef COMPUTE_TERRAIN_SHADOW_BASE
 #		undef EVAL_TERRAIN_DIR_SHADOW
 #		undef LANDSCAPE_PARALLAX_ENABLED
+#	endif
+
+#	if defined(HORIZONTAL_CURVATURE) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
+	if (SharedData::horizontalCurvatureSettings.DebugColor != 0) {
+		float3 debugColor = HorizontalCurvature::GetDebugColor(input.WorldPosition.xy, FrameBuffer::CameraPosAdjust.z);
+		psout.Diffuse.xyz = lerp(psout.Diffuse.xyz, debugColor, 0.85f);
+	}
 #	endif
 
 	return psout;

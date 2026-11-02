@@ -74,8 +74,8 @@ VS_OUTPUT main(VS_INPUT input)
 	float4 previousWorldPosition = mul(PreviousWorld, finalModelPosition);
 
 #		if defined(HORIZONTAL_CURVATURE)
-	worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy);
-	previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy);
+	worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy, FrameBuffer::CameraPosAdjust.z);
+	previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy, FrameBuffer::CameraPosAdjust.z);
 	viewPosition = mul(FrameBuffer::CameraViewProj, worldPosition);
 #		endif
 
@@ -85,6 +85,7 @@ VS_OUTPUT main(VS_INPUT input)
 #	endif  // RENDER_DEPTH
 
 	vsout.Position = viewPosition;
+
 	vsout.TexCoord = float3(input.TexCoord0.xy, FogParam.z);
 
 	return vsout;
@@ -283,6 +284,13 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Diffuse = float4(color, 1.0);
 #		endif  // DEFERRED
 #	endif      // RENDER_DEPTH
+
+#	if defined(HORIZONTAL_CURVATURE)
+	if (SharedData::horizontalCurvatureSettings.DebugColor != 0) {
+		float3 debugColor = HorizontalCurvature::GetDebugColor(input.WorldPosition.xy, FrameBuffer::CameraPosAdjust.z);
+		psout.Diffuse.xyz = lerp(psout.Diffuse.xyz, debugColor, 0.85f);
+	}
+#	endif
 
 	return psout;
 }
