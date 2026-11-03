@@ -26,11 +26,11 @@ namespace HorizontalCurvature
 		return max(0.0f, SharedData::horizontalCurvatureSettings.CurvatureStrength) * distanceOverCutoff * distanceOverCutoff;
 	}
 
-	float3 GetDebugColor(float2 cameraRelativeXY, float cameraZ)
+	float3 GetDebugColor(float2 cameraRelativeXY, float cameraZ, float hueOffset)
 	{
 		const float drop = ComputeDrop(cameraRelativeXY, cameraZ);
 		const float t = saturate(drop / 5000.0f);
-		return HsvToRgb(frac(SharedData::horizontalCurvatureSettings.DebugHue + t * 0.25f), 1.0f, 1.0f);
+		return HsvToRgb(frac(SharedData::horizontalCurvatureSettings.DebugHue + hueOffset + t * 0.25f), 1.0f, 1.0f);
 	}
 }
 

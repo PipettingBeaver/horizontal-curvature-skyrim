@@ -3388,9 +3388,14 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 #		undef LANDSCAPE_PARALLAX_ENABLED
 #	endif
 
-#	if defined(HORIZONTAL_CURVATURE) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
+#	if !defined(RENDER_DEPTH) && defined(HORIZONTAL_CURVATURE) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
 	if (SharedData::horizontalCurvatureSettings.DebugColor != 0) {
-		float3 debugColor = HorizontalCurvature::GetDebugColor(input.WorldPosition.xy, FrameBuffer::CameraPosAdjust.z);
+#		if defined(LODLANDNOISE) || defined(LODLANDSCAPE)
+		const float hueOffset = 0.0f;
+#		else
+		const float hueOffset = 0.33f;
+#		endif
+		float3 debugColor = HorizontalCurvature::GetDebugColor(input.WorldPosition.xy, FrameBuffer::CameraPosAdjust.z, hueOffset);
 		psout.Diffuse.xyz = lerp(psout.Diffuse.xyz, debugColor, 0.85f);
 	}
 #	endif

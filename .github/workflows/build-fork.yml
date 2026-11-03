@@ -23,5 +23,6 @@ jobs:
             repository: ${{ github.repository }}
             run-cpp: true
             run-shader-validation: true
-            cmake-preset: ALL
-            cache-key-suffix: fork
+            # PR keeps the full AIO artifact but skips LTCG; faster dev iterations.
+            cmake-preset: PR
+            cache-key-suffix: fork-pr

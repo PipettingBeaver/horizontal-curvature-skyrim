@@ -285,9 +285,9 @@ PS_OUTPUT main(PS_INPUT input)
 #		endif  // DEFERRED
 #	endif      // RENDER_DEPTH
 
-#	if defined(HORIZONTAL_CURVATURE)
+#	if !defined(RENDER_DEPTH) && defined(HORIZONTAL_CURVATURE)
 	if (SharedData::horizontalCurvatureSettings.DebugColor != 0) {
-		float3 debugColor = HorizontalCurvature::GetDebugColor(input.WorldPosition.xy, FrameBuffer::CameraPosAdjust.z);
+		float3 debugColor = HorizontalCurvature::GetDebugColor(input.WorldPosition.xy, FrameBuffer::CameraPosAdjust.z, 0.66f);
 		psout.Diffuse.xyz = lerp(psout.Diffuse.xyz, debugColor, 0.85f);
 	}
 #	endif
