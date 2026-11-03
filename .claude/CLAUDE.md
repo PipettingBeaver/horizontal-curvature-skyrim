@@ -165,3 +165,31 @@ Do not, without explicit user direction:
 - Run `Release: Semantic Version` on `hotfix/X.Y.x` for the current line; it fails as out of range. Use `ff_target` into `main` instead.
 
 Release process: [Developers wiki: Patch Release Process](https://github.com/community-shaders/skyrim-community-shaders/wiki/Developers#patch-release-process-any-line).
+
+## Project-specific: Horizontal Curvature
+
+This checkout is a standalone CS fork for the `horizontal-curvature` feature.
+Start with `docs/horizontal-curvature-architecture.md`, then `design.md`,
+`PROGRESS.md`, and `RESUME.md`.
+
+Critical testing rules:
+
+- Clear `<MO2_INSTANCE>/overwrite/ShaderCache`
+  after every HLSL edit. A stale cache can silently run old shaders.
+- `HORIZONTAL_CURVATURE` requires the feature to be enabled at boot; the
+  `Disable at Boot` entry is separate from the runtime `Enable` setting.
+- The confirmed geometric diagnostic was a temporary clip-space horizontal X
+  shift. It moved LOD and proved VS execution, but it is screen-space. Do not
+  treat it as the curvature math.
+- Keep the full CS feature baseline for normal play; disabling all optional
+  features while leaving Post Processing enabled produced a grey/grainy world.
+- Fast test setup: MO2 profile `HorizontalCurvatureTest` plus
+  `SettingsUser.json.bak.hctest` (only `HorizontalCurvature` loaded, Post
+  Processing Mode `Vanilla`). CS settings are global, not per MO2 profile;
+  restore `SettingsUser.json.bak.fullfeatures` for the full baseline. The MO2
+  instance launchers `launch-hctest.bat` and `launch-full.bat` switch both.
+- The lab build adds runtime b6 switches for curvature mode, tree anchor,
+  per-type apply flags, `ApplyToAllLighting`, and a vertex probe. Do not turn
+  these into compile-time defines; the point is one build with no reloads.
+- **Run Old Positive Control** sets the historical horizontal clip-X
+  `0.25 * w` shift. It is the first thing to test after the b6 VS fix.

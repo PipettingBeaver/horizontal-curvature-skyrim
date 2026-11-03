@@ -13,6 +13,9 @@ namespace VanillaBinding
 		auto* context = globals::d3d::context;
 		ID3D11Buffer* buffers[] = { state->permutationCB->CB(), state->sharedDataCB->CB(), state->featureDataCB->CB() };
 		context->PSSetConstantBuffers(4, static_cast<UINT>(std::size(buffers)), buffers);
+		// FeatureData is register b6 in both stages. Without this, vertex shaders
+		// read an unbound feature buffer and see all settings as zero.
+		context->VSSetConstantBuffers(6, 1, &buffers[2]);
 		context->CSSetConstantBuffers(5, 2, buffers + 1);
 	}
 

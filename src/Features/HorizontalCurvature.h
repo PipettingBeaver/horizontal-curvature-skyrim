@@ -28,6 +28,30 @@ struct HorizontalCurvature : Feature
 				T("feature.horizontal_curvature.key_feature_3", "Elevation-aware horizon extension for high vantage points") } };
 	}
 
+	/** @brief Curvature fallback selected at runtime. */
+	enum class CurvatureMode : uint32_t
+	{
+		Parabolic = 0,          ///< y -= k * d^2 (current implementation).
+		SphericalVertical = 1,  ///< Circular-arc vertical drop; no XZ contraction.
+		SphericalFull = 2,      ///< Vertical drop plus sin(phi)/phi XZ contraction.
+	};
+
+	/** @brief Tree LOD warp anchor. */
+	enum class TreeMode : uint32_t
+	{
+		PerVertex = 0,   ///< Warp each billboard vertex.
+		BaseAnchor = 1,  ///< Translate the whole tree from its instance base.
+	};
+
+	/** @brief Temporary vertex-space probes; all are runtime-only. */
+	enum class DebugVertexMode : uint32_t
+	{
+		None = 0,
+		ClipX = 1,
+		ClipY = 2,
+		WorldZ = 3,
+	};
+
 	struct Settings
 	{
 		bool Enable = true;                 ///< Runtime effect switch; does not recompile shaders.
@@ -37,6 +61,17 @@ struct HorizontalCurvature : Feature
 		float InnerRadiusCutoff = 1000.0f;  ///< Game units from the camera before displacement begins.
 		float ElevationScaleFactor = 0.0f;  ///< Extends the deadzone by this factor times sqrt(camera height).
 		float SeaLevelOffset = 0.0f;        ///< World-space Z treated as sea level for the elevation term.
+		float CutoffSoftness = 0.0f;        ///< Extra distance over which the cutoff ramps in.
+
+		uint32_t CurvatureMode = 0;       ///< CurvatureMode value.
+		uint32_t TreeMode = 0;            ///< TreeMode value.
+		uint32_t DebugVertexMode = 0;     ///< DebugVertexMode value.
+		float DebugVertexAmount = 0.25f;  ///< Clip/world offset multiplier for the vertex probe.
+
+		bool ApplyToAllLighting = false;  ///< Test: apply to non-LOD Lighting VS permutations too.
+		bool ApplyTerrain = true;         ///< Apply to LOD landscape.
+		bool ApplyObjects = true;         ///< Apply to LOD objects.
+		bool ApplyTrees = true;           ///< Apply to DistantTree LOD.
 	};
 	Settings settings;
 
@@ -51,6 +86,14 @@ struct HorizontalCurvature : Feature
 		uint32_t DebugColor;
 		float DebugHue;
 		float pad0;
+		uint32_t CurvatureMode;
+		uint32_t TreeMode;
+		uint32_t DebugVertexMode;
+		uint32_t Flags;
+		float DebugVertexAmount;
+		float CutoffSoftness;
+		float pad1;
+		float pad2;
 	};
 	static_assert(sizeof(PerFrame) % 16 == 0, "HorizontalCurvature::PerFrame must be 16-byte aligned");
 

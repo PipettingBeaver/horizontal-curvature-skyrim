@@ -8,9 +8,10 @@ full test plan.
 
 - Repo: `<REPO_ROOT>`
 - Branch: `horizontal-curvature`
-- Remote: `https://github.com/PipettingBeaver/horizontal-curvature-skyrim.git`
-  (HTTPS with `gh` credential helper; the SSH key needs unlocking again)
-- Latest pushed commit: `615568bd feat(horizontal-curvature): add debug controls`
+- Remote: `git@github.com:PipettingBeaver/horizontal-curvature-skyrim.git`
+  (SSH; the key is passphrase-protected. `gh` HTTPS works for downloads/runs but
+  lacks the `workflow` scope needed to push workflow changes.)
+- Latest pushed commit: `846a2f4b fix(horizontal-curvature): guard depth debug`
 - CI workflow: `.github/workflows/build-fork.yml`
 - CI runs on GitHub-hosted Windows runners. **The local machine does not need to stay on.**
 - Failed CI run: `41418566747`
@@ -25,16 +26,18 @@ full test plan.
   - Added per-LOD debug hue offsets: terrain hue +0.0, object +0.33, tree +0.66.
   - Fork CI now uses the faster `PR` preset for the C++/AIO build; shader
     validation remains `ALL`.
-- New CI run will start on the next push. Do not push another commit while it
-  is in progress; the workflow concurrency cancels the older run.
+- New CI run `41556965617` passed and the AIO was deployed. Build hash: `846a2f4b`.
+- Current test settings: `CurvatureStrength=5e-6`, `ElevationScaleFactor=0`,
+  `InnerRadiusCutoff=0`, `SeaLevelOffset=0`, `Enable=true`,
+  `DebugColor=true`, `DebugHue=0.35`.
+- The feature `.ini` version is `0-2-0` for the lab build; the build hash is the
+  reliable DLL identifier. Live shader edits do not change the build hash.
 
-### Download / deploy when CI finishes
+### Deploy / verify (if a new CI artifact is needed)
 
 ```bash
 PATH="$HOME/.local/bin:$PATH"
-gh run watch 41418566747 -R PipettingBeaver/horizontal-curvature-skyrim
-
-gh run download 41418566747 -R PipettingBeaver/horizontal-curvature-skyrim \
+gh run download <run-id> -R PipettingBeaver/horizontal-curvature-skyrim \
   -n dist-artifacts -D /tmp/opencode/cs-dist-new
 
 <REPO_ROOT>/tools/deploy-aio.sh \
@@ -43,13 +46,13 @@ gh run download 41418566747 -R PipettingBeaver/horizontal-curvature-skyrim \
 rm -rf "<MO2_INSTANCE>/overwrite/ShaderCache"
 ```
 
-Confirm the new build in `CommunityShaders.log`:
+Confirm the DLL build in `CommunityShaders.log`:
 
 ```text
-Community Shaders 1.9.0 | branch: horizontal-curvature | describe: 615568b...
+Community Shaders 1.9.0 | branch: horizontal-curvature | describe: 846a2f4...
 ```
 
-The feature `.ini` version is still `0-1-0`; the build hash is the reliable identifier.
+`describe:` identifies the DLL/commit, not a manually edited deployed shader.
 
 ## 2. Game / MO2 state
 
@@ -60,9 +63,22 @@ The feature `.ini` version is still `0-1-0`; the build hash is the reliable iden
 - Steam install: `~/.local/share/Steam/steamapps/common/Skyrim Special Edition` (1.7.104)
 - Steam 1.5.97 depots downloaded under:
   `~/.local/share/Steam/ubuntu12_32/steamapps/content/app_489830`
-- MO2: `<MO2_INSTANCE>`, profile `horizon`
-- Enabled: Community Shaders Dev, Address Library, SSE Engine Fixes + preloader
-- All optional CS features are disabled; `HorizontalCurvature` is enabled at boot.
+- MO2: `<MO2_INSTANCE>`
+- Test profile: `HorizontalCurvatureTest` (copy of `horizon`); enabled mods are
+  Community Shaders Dev, Address Library, SSE Engine Fixes + preloader.
+- Test CS settings: `SettingsUser.json.bak.hctest` — every optional feature
+  disabled except `HorizontalCurvature`, `Post Processing Mode = Vanilla`.
+  This is the minimal CS setup for fast shader compiles.
+- Normal/full baseline: `SettingsUser.json.bak.fullfeatures` with profile
+  `horizon`. CS settings live in the shared overwrite, not in the MO2 profile;
+  switching profile alone does not switch CS settings.
+- Use `launch-hctest.bat` and `launch-full.bat` in the MO2 instance root to
+  switch profile and settings together.
+- Fallback if the all-off `Vanilla` profile looks wrong:
+  `SettingsUser.json.bak.hctest-pipeline` keeps `PostProcessing`,
+  `LinearLighting`, and `HDRDisplay`, with `PostProcessing` mode.
+- Do **not** disable all optional features while leaving Post Processing mode at
+  `PostProcessing`: that produced the grey/grainy world.
 - The clean install has **no CC/AE content**. The full 1,096-mod `StableList` will
   need CC content + BEES (and a compatible 1.5.97/1.7 data setup) later.
 
@@ -81,17 +97,27 @@ The feature `.ini` version is still `0-1-0`; the build hash is the reliable iden
 
 ## 3. What is actually deployed
 
-The **deployed mod folder is still the old temporary build** until the new AIO is
-deployed. Do not mix new shaders with the old DLL: the new C++ `PerFrame` is 32
-bytes (8 floats), while the old DLL writes 16 bytes (4 floats).
+- Deployed CI AIO: commit `846a2f4b`, feature version `0.1.0`.
+- Proper `Lighting.hlsl`/`DistantTree.hlsl` are deployed: no `#error` and no
+  hardcoded Z/NDC diagnostics.
+- The C++ `PerFrame` is now 64 bytes (16 fields) and matches the expanded `b6`
+  `HorizontalCurvatureSettings` layout. Do not mix these shaders with the old
+  32-byte DLL; the CI AIO packages both.
+- Feature is enabled at boot; runtime `Enable` is on; test settings: cutoff `0`,
+  k `5e-6`, elevation `0`, debug tint on.
+- The current active CS settings are the reduced `hctest` set; the full baseline
+  is backed up, not active. `Use FileWatcher` is on for the reduced profile.
+- Reduced profile launched at 00:31; cache rebuilt (4,098 files). In-game result:
+  debug colors/hue/strength/cutoff work, but Enable and geometry do nothing.
+- **Root cause confirmed:** `FeatureData` b6 was bound only to PS/CS, not VS.
+  `Lighting`/`DistantTree` VS read zero settings while PS debug worked.
+  `src/VanillaBinding.cpp` now binds b6 to VS; this is **uncommitted and not in
+  the deployed DLL**, so the current game still cannot move geometry.
+- The repo working tree still has uncommitted `PROGRESS.md`, `RESUME.md`,
+  Enable-guard shader edits, and the `VanillaBinding.cpp` fix; none are in the
+  CI artifact.
 
-Repo commit `615568bd` contains the proper implementation:
-
-- `src/Features/HorizontalCurvature.h/.cpp`
-- `features/HorizontalCurvature/Shaders/HorizontalCurvature/HorizontalCurvature.hlsli`
-- `package/Shaders/Common/SharedData.hlsli`
-- `package/Shaders/Lighting.hlsl`
-- `package/Shaders/DistantTree.hlsl`
+Architecture: `docs/horizontal-curvature-architecture.md`.
 
 Deployed mod path:
 
@@ -108,6 +134,22 @@ Deployed mod path:
   - Lighting now reads `CameraPosAdjust` through the existing `VS_PerFrame` b12 view.
   - DistantTree passes `FrameBuffer::CameraPosAdjust` explicitly.
 - The `cmd.exe` launcher wrapper was fixed via `start`.
+- **Stale shader cache was the main false negative.** CS loaded old compiled
+  shaders (`Using disk cache`) while live HLSL edits were ignored. For fast
+  iteration, delete only `ShaderCache/Lighting` and `ShaderCache/DistantTree`,
+  or enable `Use FileWatcher`; full-clear only for shared includes, feature-set
+  changes, or when selective invalidation fails. `Skip Unchanged Shaders` only
+  compares top-level `.hlsl` mtimes, so touch/delete after `.hlsli` edits.
+- A temporary **clip-space horizontal X shift** visibly moved LOD geometry and
+  proved the vertex block executes. It was screen-space and rotated with the
+  camera, so it is not curvature. The later vertical Y/world-Z tests were
+  corrupted by stale cache / disabled-at-boot / no-world state.
+- `#error` diagnostics confirmed `HORIZONTAL_CURVATURE` in Lighting VS and
+  DistantTree VS/PS; they were removed after the test.
+- **Missing VS `b6` binding** was the final geometry blocker: PS/CS got
+  `FeatureData`, VS did not, so `Enable` read zero in the vertex shaders.
+  `src/VanillaBinding.cpp` now calls
+  `VSSetConstantBuffers(6, 1, &featureDataCB)`. Pending CI build/deploy.
 
 ## 5. New controls in 615568bd
 
@@ -119,17 +161,34 @@ Deployed mod path:
 - Debug tint is driven by the shared `b6` buffer, not hardcoded values.
 - Temporary hardcoded Z/NDC diagnostics are removed from the repo version.
 
+### Lab-build controls (runtime, no recompile)
+
+- `CurvatureMode`: Parabolic / Spherical vertical / Spherical full (XZ shrink).
+- `TreeMode`: Per-vertex / Base anchor.
+- `ApplyToAllLighting`: test-only bypass of the Lighting LOD guard.
+- `ApplyTerrain`, `ApplyObjects`, `ApplyTrees`: isolate LOD categories.
+- `DebugVertexMode`: None / Clip X / Clip Y / World Z; proves the VS path.
+- **Run Old Positive Control** button: sets `Enable`, Clip X, amount `0.25` —
+  the historical horizontal shift that visibly moved LOD.
+- `DebugVertexAmount`: clip fraction, or 10,000 game units for World Z.
+- `CutoffSoftness`: smooths the deadzone edge to test seams.
+- Existing `Enable`, debug tint/hue, strength, cutoff, elevation, sea level.
+
 ## 6. Current unknowns / decision tree
 
-### First: does Debug Hue work?
+### Already established
 
-- Hue changes -> `b6` settings reach the shader.
-- Hue does not change -> inspect:
-  - `FeatureBuffer.cpp` order and `GetCommonBufferData()`
-  - `SharedData.hlsli` struct layout/size
-  - C++ `PerFrame` field order/size
-  - whether the feature is loaded and the shader cache was cleared
-  - whether the new AIO was actually deployed and the build hash changed
+- `b6` settings reach the **pixel** shader: Debug Hue changes the LOD tint.
+- `HORIZONTAL_CURVATURE` is defined in Lighting VS and DistantTree VS/PS
+  (`#error` result).
+- The clip-space horizontal X shift moved LOD geometry, proving VS execution.
+- The feature must be enabled at boot for the define to exist; runtime `Enable`
+  is a separate uniform.
+- The stale cache was the reason live shader edits did not take effect.
+- **VS settings were missing:** b6 was not bound to VS. The one-line
+  `VanillaBinding.cpp` fix is pending CI.
+- **Still unproven:** the proper world-space Z drop moving terrain/object/tree
+  LOD in-world after the VS b6 fix is deployed.
 
 ### If hue works but terrain/mountain still does not move
 
@@ -139,9 +198,12 @@ Deployed mod path:
    - tree LOD: `DistantTree`
    - full-detail cells: no debug tint
 2. Check the CS log for shader compile errors for Lighting LOD.
-3. Add a temporary clip-space shift (X/Y) to the Lighting LOD VS only:
-   - If it moves, the VS block executes; the world-space recompute is wrong.
-   - If it does not move, the mountain is not using that VS permutation.
+3. The clip-space shift test has already been done:
+   - The temporary horizontal X shift moved LOD, proving VS execution.
+   - It is screen-space and not suitable for curvature; do not re-add it unless
+     re-validating a new shader path.
+   - If the world-space drop still does not move after a genuine cache clear,
+     suspect the `worldPosition`/`ViewProj` recompute or the LOD permutation.
 4. Compare Lighting vs DistantTree:
    - Lighting uses `ViewProj`; DistantTree uses `FrameBuffer::CameraViewProj`.
    - Verify `worldPosition` is camera-relative and that `viewPos = mul(ViewProj, worldPosition)`
@@ -230,6 +292,10 @@ Deployed mod path:
 
 ## 8. Implementation tricks / checklist
 
+0. Invalidate only affected shaders: delete `ShaderCache/Lighting` and
+   `ShaderCache/DistantTree`, or enable `Use FileWatcher`. Never trust a launch
+   that says `Using disk cache` after a source change; touch the top-level
+   `.hlsl` after editing an `.hlsli`, and full-clear as a fallback.
 1. Keep warp in camera-relative, unrotated world space.
 2. Apply the same function to all relevant LOD passes (terrain, object, tree,
    and shadows if they overlap).

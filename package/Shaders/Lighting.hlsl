@@ -191,10 +191,35 @@ VS_OUTPUT main(VS_INPUT input)
 	float4 viewPos = mul(modelView, inputPosition);
 #	endif  // SKINNED
 
-#	if defined(HORIZONTAL_CURVATURE) && !defined(SKINNED) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
-	worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy, CameraPosAdjust.z);
-	previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy, CameraPosAdjust.z);
-	viewPos = mul(ViewProj, worldPosition);
+#	if defined(HORIZONTAL_CURVATURE) && !defined(SKINNED)
+	bool hcTypeEnabled = false;
+#		if defined(LODLANDNOISE) || defined(LODLANDSCAPE)
+	hcTypeEnabled = (SharedData::horizontalCurvatureSettings.Flags & HC_FLAG_APPLY_TERRAIN) != 0;
+#		elif defined(LODOBJECTS) || defined(LODOBJECTSHD)
+	hcTypeEnabled = (SharedData::horizontalCurvatureSettings.Flags & HC_FLAG_APPLY_OBJECTS) != 0;
+#		else
+	hcTypeEnabled = (SharedData::horizontalCurvatureSettings.Flags & HC_FLAG_APPLY_ALL_LIGHTING) != 0;
+#		endif
+	if (SharedData::horizontalCurvatureSettings.Enable != 0 &&
+	    (hcTypeEnabled || SharedData::horizontalCurvatureSettings.DebugVertexMode != 0)) {
+		if (hcTypeEnabled) {
+			worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy, CameraPosAdjust.z);
+			previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy, CameraPosAdjust.z);
+			if (SharedData::horizontalCurvatureSettings.CurvatureMode == 2) {
+				worldPosition.xy = worldPosition.xy * HorizontalCurvature::ComputeXZScale(worldPosition.xy, CameraPosAdjust.z);
+				previousWorldPosition.xy = previousWorldPosition.xy * HorizontalCurvature::ComputeXZScale(previousWorldPosition.xy, CameraPosAdjust.z);
+			}
+		}
+		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 3) {
+			worldPosition.z += SharedData::horizontalCurvatureSettings.DebugVertexAmount * 10000.0f;
+		}
+		viewPos = mul(ViewProj, worldPosition);
+		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 1) {
+			viewPos.x += SharedData::horizontalCurvatureSettings.DebugVertexAmount * viewPos.w;
+		} else if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 2) {
+			viewPos.y += SharedData::horizontalCurvatureSettings.DebugVertexAmount * viewPos.w;
+		}
+	}
 #	endif
 
 	vsout.Position = viewPos;
@@ -3389,7 +3414,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 #	endif
 
 #	if !defined(RENDER_DEPTH) && defined(HORIZONTAL_CURVATURE) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
-	if (SharedData::horizontalCurvatureSettings.DebugColor != 0) {
+	if (SharedData::horizontalCurvatureSettings.Enable != 0 && SharedData::horizontalCurvatureSettings.DebugColor != 0) {
 #		if defined(LODLANDNOISE) || defined(LODLANDSCAPE)
 		const float hueOffset = 0.0f;
 #		else

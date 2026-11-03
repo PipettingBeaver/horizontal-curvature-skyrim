@@ -74,9 +74,31 @@ VS_OUTPUT main(VS_INPUT input)
 	float4 previousWorldPosition = mul(PreviousWorld, finalModelPosition);
 
 #		if defined(HORIZONTAL_CURVATURE)
-	worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy, FrameBuffer::CameraPosAdjust.z);
-	previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy, FrameBuffer::CameraPosAdjust.z);
-	viewPosition = mul(FrameBuffer::CameraViewProj, worldPosition);
+	const uint hcFlags = SharedData::horizontalCurvatureSettings.Flags;
+	const bool hcApplyTree = (hcFlags & HC_FLAG_APPLY_TREES) != 0;
+	if (SharedData::horizontalCurvatureSettings.Enable != 0 &&
+	    (hcApplyTree || SharedData::horizontalCurvatureSettings.DebugVertexMode != 0)) {
+		if (hcApplyTree) {
+			float2 hcWarpXY = worldPosition.xy;
+			if (SharedData::horizontalCurvatureSettings.TreeMode == 1)
+				hcWarpXY = mul(World, float4(input.InstanceData1.xyz, 1.0f)).xy;
+			const float hcDrop = HorizontalCurvature::ComputeDrop(hcWarpXY, FrameBuffer::CameraPosAdjust.z);
+			worldPosition.z -= hcDrop;
+			previousWorldPosition.z -= hcDrop;
+			if (SharedData::horizontalCurvatureSettings.CurvatureMode == 2 &&
+			    SharedData::horizontalCurvatureSettings.TreeMode != 1) {
+				worldPosition.xy = worldPosition.xy * HorizontalCurvature::ComputeXZScale(worldPosition.xy, FrameBuffer::CameraPosAdjust.z);
+				previousWorldPosition.xy = previousWorldPosition.xy * HorizontalCurvature::ComputeXZScale(previousWorldPosition.xy, FrameBuffer::CameraPosAdjust.z);
+			}
+		}
+		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 3)
+			worldPosition.z += SharedData::horizontalCurvatureSettings.DebugVertexAmount * 10000.0f;
+		viewPosition = mul(FrameBuffer::CameraViewProj, worldPosition);
+		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 1)
+			viewPosition.x += SharedData::horizontalCurvatureSettings.DebugVertexAmount * viewPosition.w;
+		else if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 2)
+			viewPosition.y += SharedData::horizontalCurvatureSettings.DebugVertexAmount * viewPosition.w;
+	}
 #		endif
 
 	vsout.WorldPosition = worldPosition;
@@ -286,7 +308,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif      // RENDER_DEPTH
 
 #	if !defined(RENDER_DEPTH) && defined(HORIZONTAL_CURVATURE)
-	if (SharedData::horizontalCurvatureSettings.DebugColor != 0) {
+	if (SharedData::horizontalCurvatureSettings.Enable != 0 && SharedData::horizontalCurvatureSettings.DebugColor != 0) {
 		float3 debugColor = HorizontalCurvature::GetDebugColor(input.WorldPosition.xy, FrameBuffer::CameraPosAdjust.z, 0.66f);
 		psout.Diffuse.xyz = lerp(psout.Diffuse.xyz, debugColor, 0.85f);
 	}

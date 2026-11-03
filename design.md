@@ -1,6 +1,12 @@
 # Horizontal Curvature, or Why we can't see High Hrothgar from White Gold Tower
 
-*Technical Design Document & Agentic Implementation Blueprint (Pass 2)*
+*Technical Design Document & Agentic Implementation Blueprint (Pass 3)*
+
+> **Status (2026-11-03):** Sections 1-5 preserve the original design intent.
+> Section 6 records the implemented architecture and supersedes any conflicting
+> details above, especially the `b12` buffer and world-position assumptions.
+> The authoritative implementation map is
+> `docs/horizontal-curvature-architecture.md`.
 
 ---
 
@@ -121,3 +127,99 @@ Integrate with Community Shaders' existing ImGui framework (accessible via the `
 
 
 4. **Horizon Tuning:** Calibrate `CurvatureStrength` ($k$) until distant mountain ranges drop gracefully below the atmospheric haze line, achieving true planetary scale.
+
+---
+
+## 6. Implemented Architecture (authoritative)
+
+The original blueprint used a separate `b12` cbuffer containing the camera
+position. The implementation does **not** do that: Lighting and DistantTree
+already use bank `b12`, and a second declaration caused CI shader failure
+`X4578: cbuffer bank 12 used more than once`.
+
+### 6.1 Buffer and feature data
+
+- Settings live in the shared `FeatureData` buffer at **b6** as
+  `HorizontalCurvatureSettings`.
+- `HorizontalCurvature::PerFrame` is 64 bytes:
+
+```text
+CurvatureStrength, InnerRadiusCutoff, ElevationScaleFactor, SeaLevelOffset,
+Enable, DebugColor, DebugHue, pad0,
+CurvatureMode, TreeMode, DebugVertexMode, Flags,
+DebugVertexAmount, CutoffSoftness, pad1, pad2
+```
+
+`Flags` bits: `1` apply to all Lighting (test), `2` terrain, `4` objects,
+`8` trees.
+
+- The shader reads the absolute camera Z from the existing per-frame bank
+  (`VS_PerFrame` / `FrameBuffer::CameraPosAdjust`) and passes it into
+  `ComputeDrop`. It does not declare another camera cbuffer.
+
+### 6.2 Shader hooks
+
+- `Lighting.hlsl` VS: only non-skinned LOD permutations
+  (`LODLANDNOISE`, `LODLANDSCAPE`, `LODOBJECTS`, `LODOBJECTSHD`). It warps
+  `worldPosition` and `previousWorldPosition`, then recomputes
+  `viewPos = mul(ViewProj, worldPosition)`.
+- `DistantTree.hlsl` VS: warps both world positions and recomputes with
+  `FrameBuffer::CameraViewProj`; skipped in `RENDER_DEPTH`.
+- Pixel debug tint is guarded by `!defined(RENDER_DEPTH)` and the runtime
+  `Enable`/`DebugColor` settings. Terrain hue `0.0`, object `+0.33`, tree `+0.66`.
+- LOD world positions are already camera-relative; distance is
+  `length(worldPosition.xy)` with no second camera subtraction.
+
+### 6.3 Runtime and boot switches
+
+- `Disable at Boot` controls whether the feature and `HORIZONTAL_CURVATURE`
+  define exist at all.
+- Runtime `Enable` only changes the b6 value; it does not recompile shaders.
+- The feature is Alpha CORE, so it is disabled by default until enabled.
+
+### 6.4 Math used now
+
+```hlsl
+cameraHeight = max(0, cameraZ - SeaLevelOffset);
+dynamicCutoff = max(0, InnerRadiusCutoff) +
+                max(0, ElevationScaleFactor) * sqrt(cameraHeight);
+distance = max(0, length(cameraRelativeXY) - dynamicCutoff);
+drop = max(0, CurvatureStrength) * distance * distance;
+worldPosition.z -= drop;
+```
+
+This is the vertical parabolic drop only. True spherical XZ contraction is a
+future mode. The engine's own terrain-LOD Z nudge
+(`vsout.Position.z += ... viewPos.z - 70000 ...`) runs after this block and can
+decouple terrain from object/tree LOD.
+
+### 6.5 Testing facts that changed the design
+
+- CI/build success does not prove live shader edits are active. Invalidate only
+  the affected shader caches (`Lighting`, `DistantTree`) or use `Use FileWatcher`;
+  CS otherwise logs `Using disk cache` and runs old shaders. Full-clear only for
+  shared includes, feature-set changes, or a stubborn stale cache.
+- A temporary **clip-space horizontal X shift** visibly moved LOD geometry and
+  proved the vertex path executes. It was screen-space and rotated with the
+  camera, so it is a diagnostic only. Later vertical Y/world-Z tests were
+  corrupted by stale cache/disabled-at-boot state and are not evidence that
+  vertex displacement is impossible.
+- `#error` diagnostics confirmed `HORIZONTAL_CURVATURE` reaches Lighting VS and
+  DistantTree VS/PS. They were removed after the test.
+- **Final geometry blocker:** `FeatureData` b6 was bound to PS/CS but not VS.
+  The vertex shaders read `Enable = 0`, so `ComputeDrop` returned zero while the
+  PS debug tint still worked. `src/VanillaBinding.cpp` now binds b6 to VS; this
+  is pending a CI build/deploy.
+
+### 6.6 Current open work
+
+- Validate the proper shaders in-world after the VS b6 binding fix is deployed.
+- The pending lab build includes per-type terrain/object/tree toggles, runtime
+  curvature modes (parabolic/spherical vertical/spherical full), tree per-vertex
+  vs base anchor, `ApplyToAllLighting`, cutoff softness, and a clip/world vertex
+  probe. These are b6 uniforms, so tuning them does not recompile shaders.
+- Decide which mode/tree strategy becomes the production default after testing.
+- Test production cutoff/elevation values, seams, culling, TAA, high altitude,
+  and the engine terrain nudge.
+- Add a visible build/version line; the `describe:` hash is currently the only
+  reliable DLL build identifier.

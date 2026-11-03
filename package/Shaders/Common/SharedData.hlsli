@@ -497,6 +497,14 @@ namespace SharedData
 		uint DebugColor;
 		float DebugHue;
 		float pad0;
+		uint CurvatureMode;
+		uint TreeMode;
+		uint DebugVertexMode;
+		uint Flags;
+		float DebugVertexAmount;
+		float CutoffSoftness;
+		float pad1;
+		float pad2;
 	};
 
 	cbuffer FeatureData : register(b6)

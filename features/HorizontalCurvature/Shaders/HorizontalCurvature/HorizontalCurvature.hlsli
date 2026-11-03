@@ -14,16 +14,70 @@ namespace HorizontalCurvature
 		return v * lerp(float3(1.0f, 1.0f, 1.0f), saturate(p - 1.0f), s);
 	}
 
+	// Flags matching HorizontalCurvature::PerFrame::Flags.
+	#define HC_FLAG_APPLY_ALL_LIGHTING 1u
+	#define HC_FLAG_APPLY_TERRAIN 2u
+	#define HC_FLAG_APPLY_OBJECTS 4u
+	#define HC_FLAG_APPLY_TREES 8u
+
+	float GetDynamicCutoff(float cameraZ)
+	{
+		const float cameraHeight = max(0.0f, cameraZ - SharedData::horizontalCurvatureSettings.SeaLevelOffset);
+		return max(0.0f, SharedData::horizontalCurvatureSettings.InnerRadiusCutoff) +
+		       max(0.0f, SharedData::horizontalCurvatureSettings.ElevationScaleFactor) * sqrt(cameraHeight);
+	}
+
+	float GetDistanceOverCutoff(float2 cameraRelativeXY, float cameraZ)
+	{
+		float over = max(0.0f, length(cameraRelativeXY) - GetDynamicCutoff(cameraZ));
+		const float softness = max(0.0f, SharedData::horizontalCurvatureSettings.CutoffSoftness);
+		if (softness > 0.0f)
+			over *= smoothstep(0.0f, 1.0f, saturate(over / softness));
+		return over;
+	}
+
+	float GetCurvatureRadius()
+	{
+		const float k = max(0.0f, SharedData::horizontalCurvatureSettings.CurvatureStrength);
+		return k > 1e-12f ? 0.5f / k : 1e12f;
+	}
+
 	float ComputeDrop(float2 cameraRelativeXY, float cameraZ)
 	{
 		if (SharedData::horizontalCurvatureSettings.Enable == 0)
 			return 0.0f;
 
-		const float cameraHeight = max(0.0f, cameraZ - SharedData::horizontalCurvatureSettings.SeaLevelOffset);
-		const float dynamicCutoff = max(0.0f, SharedData::horizontalCurvatureSettings.InnerRadiusCutoff) +
-		                            max(0.0f, SharedData::horizontalCurvatureSettings.ElevationScaleFactor) * sqrt(cameraHeight);
-		const float distanceOverCutoff = max(0.0f, length(cameraRelativeXY) - dynamicCutoff);
-		return max(0.0f, SharedData::horizontalCurvatureSettings.CurvatureStrength) * distanceOverCutoff * distanceOverCutoff;
+		const float over = GetDistanceOverCutoff(cameraRelativeXY, cameraZ);
+		const float k = max(0.0f, SharedData::horizontalCurvatureSettings.CurvatureStrength);
+		if (over <= 0.0f || k <= 0.0f)
+			return 0.0f;
+
+		const uint mode = SharedData::horizontalCurvatureSettings.CurvatureMode;
+		if (mode == 1) {
+			const float radius = GetCurvatureRadius();
+			return radius - sqrt(max(0.0f, radius * radius - over * over));
+		}
+		if (mode == 2) {
+			const float radius = GetCurvatureRadius();
+			const float phi = min(over / radius, 1.5f);
+			return (1.0f - cos(phi)) * radius;
+		}
+		return k * over * over;
+	}
+
+	float ComputeXZScale(float2 cameraRelativeXY, float cameraZ)
+	{
+		if (SharedData::horizontalCurvatureSettings.Enable == 0 ||
+		    SharedData::horizontalCurvatureSettings.CurvatureMode != 2)
+			return 1.0f;
+
+		const float over = GetDistanceOverCutoff(cameraRelativeXY, cameraZ);
+		if (over <= 0.0f)
+			return 1.0f;
+
+		const float radius = GetCurvatureRadius();
+		const float phi = min(over / radius, 1.5f);
+		return phi > 1e-6f ? sin(phi) / phi : 1.0f;
 	}
 
 	float3 GetDebugColor(float2 cameraRelativeXY, float cameraZ, float hueOffset)
