@@ -11,7 +11,7 @@ full test plan.
 - Remote: `git@github.com:PipettingBeaver/horizontal-curvature-skyrim.git`
   (SSH; the key is passphrase-protected. `gh` HTTPS works for downloads/runs but
   lacks the `workflow` scope needed to push workflow changes.)
-- Latest pushed commit: `846a2f4b fix(horizontal-curvature): guard depth debug`
+- Latest pushed commit: `0c0cdeba fix(horizontal-curvature): bind b6 after setup`
 - CI workflow: `.github/workflows/build-fork.yml`
 - CI runs on GitHub-hosted Windows runners. **The local machine does not need to stay on.**
 - Failed CI run: `41418566747`
@@ -26,7 +26,8 @@ full test plan.
   - Added per-LOD debug hue offsets: terrain hue +0.0, object +0.33, tree +0.66.
   - Fork CI now uses the faster `PR` preset for the C++/AIO build; shader
     validation remains `ALL`.
-- New CI run `41556965617` passed and the AIO was deployed. Build hash: `846a2f4b`.
+- CI run `41816433069` passed for `0c0cdeba`; the AIO is not deployed yet.
+- Prior deployed lab build: `7fb44411` (`41803166595`).
 - Current test settings: `CurvatureStrength=5e-6`, `ElevationScaleFactor=0`,
   `InnerRadiusCutoff=0`, `SeaLevelOffset=0`, `Enable=true`,
   `DebugColor=true`, `DebugHue=0.35`.
@@ -153,7 +154,8 @@ Deployed mod path:
 - **Depth-prepass binding issue:** shader blocking isolated the static grey
   layer to `Lighting:Vertex:HORIZONTAL_CURVATURE VC`; no Pixel shader removes
   it. `Renderer::ResetState`/`SetVertexShader` binding was too early.
-  `BSShader::BeginTechnique` now binds b6 after the engine returns. Pending CI.
+  `BSShader::BeginTechnique` and `BSLightingShader_SetupGeometry` now bind b6 as
+  late as possible. Pending CI.
 
 ## 5. New controls in 615568bd
 

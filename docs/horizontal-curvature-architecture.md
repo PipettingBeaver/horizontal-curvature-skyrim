@@ -373,3 +373,4 @@ This avoids repeated shader recompiles. Any change that adds/removes a shader
 - `design.md` — original mathematical/design blueprint.
 - `PROGRESS.md` — current status and research.
 - `RESUME.md` — full resume/test plan for the next session.
+- `docs/horizontal-curvature-investigation.md` — chronological in-game reports, shader-blocking keys, and test conditions.

@@ -6,8 +6,10 @@
 - Branch: `horizontal-curvature`
 - Remote: `git@github.com:PipettingBeaver/horizontal-curvature-skyrim.git` (SSH)
 - CI: `.github/workflows/build-fork.yml` (GitHub-hosted Windows runner)
-- Latest pushed commit: `846a2f4b fix(horizontal-curvature): guard depth debug`
-- Latest CI run: `41556965617` — **success**, AIO deployed; build hash `846a2f4`
+- Latest pushed commit: `0c0cdeba fix(horizontal-curvature): bind b6 after setup`
+- Latest CI run: `41816433069` — **success** (shader validation and C++/AIO); latest fix not yet deployed
+- Prior deployed lab build: `7fb44411` (`41803166595`)
+- Investigation log: `docs/horizontal-curvature-investigation.md`
 - Previous CI run: `41418566747` — failed only in shader validation
   - C++/AIO build job succeeded
   - `DistantTree` depth permutations (`Pixel:10001`, `Pixel:1`) used
@@ -88,10 +90,10 @@
 - **Second root cause confirmed:** shader blocking isolated the static grey
   layer to the vertex-only `Lighting:Vertex:HORIZONTAL_CURVATURE VC` pass;
   no Lighting Pixel shader removes it. This is the depth/prepass path.
-  `BSShader::BeginTechnique` now binds b6 after the engine returns; the earlier
-  `SetVertexShader` binding was too early.
-- The current deployed DLL only has the first fix; the per-draw depth fix and
-  pass-color diagnostic are **uncommitted**.
+  `BSShader::BeginTechnique` and `BSLightingShader_SetupGeometry` now bind b6 as
+  late as possible; the latter runs immediately before the draw.
+- The current deployed DLL only has the `7fb44411` fix; `0c0cdeba` passed CI but
+  is not deployed yet.
 - Current in-game report with the pass-color build: moving LOD/full-detail
   Lighting is colored (yellow/blue/green); the remaining static layer is grey,
   confirming the depth/prepass path is unwarped.

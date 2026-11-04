@@ -255,6 +255,13 @@ namespace LightingExtensions
 		{
 			globals::state->UpdateLightingShaderPermutation(pass);
 			func(shader, pass, renderFlags);
+
+			// SetupGeometry is the last point before the draw. Bind feature data
+			// here as well so depth/prepass draws see the same b6 as the color pass.
+			if (auto* state = globals::state; state && state->featureDataCB) {
+				ID3D11Buffer* featureData = state->featureDataCB->CB();
+				globals::d3d::context->VSSetConstantBuffers(6, 1, &featureData);
+			}
 		}
 		static inline REL::Relocation<decltype(thunk)> func;
 	};

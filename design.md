@@ -212,8 +212,8 @@ decouple terrain from object/tree LOD.
   is pending a CI build/deploy.
 - **Depth-prepass blocker:** shader blocking isolated the static grey layer to
   the vertex-only `Lighting:Vertex:HORIZONTAL_CURVATURE VC` pass. The earlier
-  `SetVertexShader` b6 binding was too early; `BSShader::BeginTechnique` now
-  binds b6 after the engine returns. Pending CI.
+  `SetVertexShader` b6 binding was too early; `BSShader::BeginTechnique` and
+  `BSLightingShader_SetupGeometry` now bind b6 as late as possible. Pending CI.
 
 ### 6.6 Current open work
 

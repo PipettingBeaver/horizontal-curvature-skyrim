@@ -62,6 +62,7 @@ This checkout is a standalone Community Shaders fork for the `horizontal-curvatu
 feature. Read these before changing or testing it:
 
 - Architecture: `docs/horizontal-curvature-architecture.md`.
+- Investigation log: `docs/horizontal-curvature-investigation.md`.
 - Design intent: `design.md`; live status/test plan: `PROGRESS.md` and `RESUME.md`.
 - The feature is enabled/disabled at **two** levels: `Disable at Boot` in
   `SettingsUser.json`, and the runtime `Enable` setting. Disabled at boot means
@@ -106,7 +107,8 @@ feature. Read these before changing or testing it:
   Shader blocking isolated the grey layer to the vertex-only
   `Lighting:Vertex:HORIZONTAL_CURVATURE VC` pass; no Pixel shader removed it.
   Binding inside `SetVertexShader` was still too early.
-  `BSShader::BeginTechnique` now binds `b6` after the engine returns.
+  `BSShader::BeginTechnique` and `BSLightingShader_SetupGeometry` now bind `b6`
+  as late as possible; the latter is the last setup point before the draw.
 - The pending lab build adds runtime fallbacks: curvature mode
   (parabolic/spherical vertical/spherical full), tree anchor, per-type apply
   flags, `ApplyToAllLighting`, and a clip/world vertex probe. They are b6

@@ -1,0 +1,196 @@
+# Horizontal Curvature — Investigation Log
+
+Status as of 2026-11-04. This log records the in-game reports, diagnostic
+settings, shader keys, and conclusions. The architecture is in
+`docs/horizontal-curvature-architecture.md`; the original design intent is in
+`design.md`.
+
+## Current build state
+
+- Deployed before the latest fix: `7fb44411` (per-draw `b6` binding inside
+  `SetVertexShader`).
+- Latest committed fix: `0c0cdeba` — bind `b6` after
+  `BSShader::BeginTechnique` returns.
+- CI for `0c0cdeba`: run `41816433069` — shader validation and C++/AIO build
+  both **success**. Not yet deployed at the time of this entry.
+- Feature version: `0.2.0`.
+- Test profile: MO2 `HorizontalCurvatureTest`.
+- Test settings: `SettingsUser.json.bak.hctest`.
+
+## Confirmed root causes, in order
+
+### 1. Stale shader cache
+
+Live shader edits were ignored because the game loaded old compiled shaders
+from `overwrite/ShaderCache`. The log said `Using disk cache`; the deployed
+files had newer code but the game ran the old `.vso/.pso`.
+
+- Prefer deleting only `ShaderCache/Lighting` and `ShaderCache/DistantTree`.
+- Full cache clear only for shared includes, feature-set changes, or when
+  selective invalidation fails.
+- `Skip Unchanged Shaders` only compares the top-level `.hlsl` mtime; a changed
+  `.hlsli` needs the including `.hlsl` touched or the affected cache dirs
+  deleted.
+
+### 2. `FeatureData` b6 not bound to the vertex stage
+
+- PS/CS received `FeatureData`; VS did not.
+- PS debug tint and sliders worked; VS read `Enable = 0`, so `ComputeDrop`
+  returned zero.
+- `src/VanillaBinding.cpp` now binds b6 to VS.
+
+### 3. Depth/prepass still unwarped
+
+Shader blocking isolated the static grey layer:
+
+```text
+Type: Lighting
+Class: Vertex
+Descriptor: 0x1
+Key: Lighting:Vertex:HORIZONTAL_CURVATURE VC
+Cache Path: Data/ShaderCache/Lighting/1_D6A832E5.vso
+```
+
+- Blocking this VS makes the grey layer partially disappear and hides or
+  inverts the lowered/debug-color element.
+- **No Lighting Pixel shader removes the grey layer.** Blocking each
+  `Lighting:Pixel:...` entry leaves it.
+- Therefore the grey layer is a **vertex-only Lighting depth/prepass path**,
+  not a Lighting color pixel pass.
+- Binding b6 inside `BSShader__BeginTechnique_SetVertexShader` was too early;
+  the engine resets VS constants afterwards. `0c0cdeba` binds b6 **after**
+  `BSShader::BeginTechnique` returns.
+
+## Shader-blocking observations
+
+Colored distant mountains:
+
+```text
+Type: Lighting
+Class: Pixel
+Descriptor: 0xF100011
+Key: Lighting:Pixel:DEFERRED DO_ALPHA_TEST HORIZONTAL_CURVATURE LODOBJECTSHD VC
+Cache Path: Data/ShaderCache/Lighting/F100011_7B164BE8.pso
+```
+
+```text
+Type: Lighting
+Class: Pixel
+Descriptor: 0xF108011
+Key: Lighting:Pixel:DEFERRED DO_ALPHA_TEST HORIZONTAL_CURVATURE LODOBJECTSHD PROJECTED_UV VC
+Cache Path: Data/ShaderCache/Lighting/F108011_E72D3340.pso
+```
+
+These select the color on different distant object-LOD mountains. They are not
+the grey layer.
+
+Tree LOD appears magenta in the distance during the pass-color diagnostic:
+
+```text
+Type: DistantTree
+Class: Vertex
+Descriptor: 0x10000
+Key: DistantTree:Vertex:DO_ALPHA_TEST HORIZONTAL_CURVATURE
+Cache Path: Data/ShaderCache/DistantTree/10000_4E16F74B.vso
+```
+
+`DistantTree` does not use the Lighting pass-color diagnostic; this is the
+normal tree debug tint at `DebugHue = 1.0`.
+
+## Pass-color diagnostic
+
+Temporary shader diagnostic: when `DebugHue >= 0.99`, Lighting PS output is
+replaced with a family color:
+
+- Green — `LODLANDNOISE` / `LODLANDSCAPE`
+- Cyan — `LODOBJECTS` / `LODOBJECTSHD`
+- Blue — `LANDSCAPE` (full-detail landscape)
+- Orange — `SKINNED`
+- Yellow — other Lighting
+- Deferred variants are darkened to 45%
+- Grey — no Lighting color PS; depth/prepass
+
+Report: the moving ground/LOD is yellow/blue and colored. The static remaining
+layer stays grey. This is consistent with the depth/prepass conclusion.
+
+## Runtime settings observed
+
+Test profile `HorizontalCurvatureTest/skyrimprefs.ini`:
+
+```ini
+bUseTAA=0
+bLodZPrepass=0
+bEnableFrontToBackPrepass=0
+bDeferredShadows=0
+bShadowsOnGrass=0
+```
+
+The grey layer remained with all of these set, and after the per-draw
+`SetVertexShader` b6 fix (`7fb44411`). The current pending fix is the later
+`BeginTechnique` binding (`0c0cdeba`).
+
+`bSAOEnable`, `bScreenSpaceReflectionEnabled`, `bIBLFEnable`, and
+`bVolumetricLightingEnable` remain enabled. They have not yet been isolated.
+
+## Test history / observations
+
+- Debug hue, cutoff, strength, color updated → PS settings and b6 work.
+- Initial geometry did not move → stale cache and missing VS b6.
+- Positive control (clip-X) and World-Z probe moved geometry → VS executes
+  when the diagnostic code runs.
+- `Apply to All Lighting` moved full-detail objects but produced grey/duplicate
+  appearance; that was a Lighting/depth pass mismatch, not a second copy of the
+  mesh.
+- `CutoffSoftness` appeared to “enable” the effect in one test, but the sample
+  was contaminated by `ApplyToAllLighting`, `DebugVertexMode = ClipX`,
+  `CutoffSoftness = 19280`, and `SeaLevelOffset = -473`.
+- Shader blocking: only `Lighting:Vertex:HORIZONTAL_CURVATURE VC` affects the
+  grey layer; no Pixel entry does.
+- Performance Overlay reported `Lighting` class; the “12 Lighting shaders” are
+  12 Lighting draw calls, not 12 color shader programs.
+
+## Test setup and commands
+
+- Launch: MO2 instance `<MO2_INSTANCE>`,
+  profile `HorizontalCurvatureTest`; use `launch-hctest.bat`.
+- Full baseline: `SettingsUser.json.bak.fullfeatures` + `launch-full.bat`.
+- Shader cache:
+  `<MO2_INSTANCE>/overwrite/ShaderCache`.
+- Log:
+  `.../compatdata/489830/pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/SKSE/CommunityShaders.log`.
+- Developer Mode: CS menu → Settings → Advanced.
+- Shader blocking: Advanced → Enable Shader Blocking; Active Shaders table.
+- Performance Overlay: F10 by default.
+
+## Next steps
+
+1. Deploy `0c0cdeba`, clear `ShaderCache/Lighting`, launch HCTest.
+2. With `DebugHue = 1.0`, check whether the static grey depth layer is gone or
+   moves with the colored layer.
+3. If grey remains:
+   - Try `bDisableZPrepassOutput=1` in the profile.
+   - Isolate whether it is the LOD or full-detail z-prepass.
+   - If necessary, hardcode a temporary depth-pass offset to prove the depth VS
+     path, then implement the correct b6/depth binding.
+4. If grey is gone, set `DebugHue = 0.35`, disable test probes, and validate the
+   real curvature:
+   - LOD-only with `ApplyToAllLighting = OFF`.
+   - `ApplyToAllLighting = ON` + cutoff for landscape/full-detail.
+   - Test parabolic, spherical vertical, and spherical full.
+   - Test tree per-vertex vs base anchor.
+   - Tune cutoff, softness, elevation, sea level.
+5. Only after the visual result is clean, remove the temporary pass-color
+   diagnostic and ship-gate the debug controls.
+
+## Related files
+
+- `docs/horizontal-curvature-architecture.md`
+- `design.md`
+- `PROGRESS.md`
+- `RESUME.md`
+- `AGENTS.md`
+- `.claude/CLAUDE.md`
+- `src/VanillaBinding.cpp`
+- `src/Hooks.cpp`
+- `package/Shaders/Lighting.hlsl`
+- `features/HorizontalCurvature/Shaders/HorizontalCurvature/HorizontalCurvature.hlsli`
