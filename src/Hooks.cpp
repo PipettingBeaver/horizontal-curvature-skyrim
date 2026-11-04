@@ -891,6 +891,14 @@ namespace Hooks
 			auto state = globals::state;
 			auto shaderCache = globals::shaderCache;
 
+			// Bind feature data for every vertex shader, including the depth prepass.
+			// Renderer::ResetState only binds it once; some prepass draws reset VS
+			// constant buffers afterwards, leaving b6 unbound.
+			if (state->featureDataCB) {
+				ID3D11Buffer* featureData = state->featureDataCB->CB();
+				globals::d3d::context->VSSetConstantBuffers(6, 1, &featureData);
+			}
+
 			if (!state->settingCustomShader) {
 				if (shaderCache->IsEnabled()) {
 					auto currentShader = state->currentShader;

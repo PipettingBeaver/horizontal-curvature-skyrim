@@ -210,6 +210,10 @@ decouple terrain from object/tree LOD.
   The vertex shaders read `Enable = 0`, so `ComputeDrop` returned zero while the
   PS debug tint still worked. `src/VanillaBinding.cpp` now binds b6 to VS; this
   is pending a CI build/deploy.
+- **Depth-prepass blocker:** the z-prepass reset VS constants after
+  `Renderer::ResetState`, leaving b6 unbound there. The color passes moved while
+  a static grey depth layer remained. `BSShader__BeginTechnique_SetVertexShader`
+  now binds b6 before every VS draw; pending CI.
 
 ### 6.6 Current open work
 

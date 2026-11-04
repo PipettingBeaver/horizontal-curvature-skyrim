@@ -101,6 +101,10 @@ feature. Read these before changing or testing it:
   not VS. `Lighting`/`DistantTree` vertex shaders therefore saw zero HC settings
   while the PS debug colors worked. `src/VanillaBinding.cpp` now binds `b6` to
   VS; this needs a new DLL build before geometry tests are meaningful.
+- The depth prepass had the same problem in a different place:
+  `Renderer::ResetState` bound `b6` once, but prepass draws reset VS constants.
+  `BSShader__BeginTechnique_SetVertexShader` now binds `b6` before every VS draw.
+  This is what caused the static grey layer after color geometry moved.
 - The pending lab build adds runtime fallbacks: curvature mode
   (parabolic/spherical vertical/spherical full), tree anchor, per-type apply
   flags, `ApplyToAllLighting`, and a clip/world vertex probe. They are b6

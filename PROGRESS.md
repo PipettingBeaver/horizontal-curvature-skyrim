@@ -85,10 +85,16 @@
 - **Root cause confirmed:** `FeatureData` b6 was bound to PS/CS but not VS.
   `Lighting`/`DistantTree` VS read `Enable = 0`; PS debug tint and sliders still
   worked. `src/VanillaBinding.cpp` now binds b6 to VS.
-- This fix is **uncommitted / not yet in a deployed DLL**, so the current game
-  still has no VS geometry. A new CI build and deploy are required.
-- Current in-game report: Enable/disable does not change horizon; debug colors
-  and hue work; strength and cutoff change the debug gradient only.
+- **Second root cause confirmed:** the depth prepass still saw unwarped geometry
+  because per-draw VS constant-buffer resets dropped b6 after
+  `Renderer::ResetState`. The pass-color diagnostic showed the moving Lighting
+  passes colored and a static grey uncolored layer.
+  `BSShader__BeginTechnique_SetVertexShader` now binds b6 before every VS draw.
+- The current deployed DLL only has the first fix; the per-draw depth fix and
+  pass-color diagnostic are **uncommitted**.
+- Current in-game report with the pass-color build: moving LOD/full-detail
+  Lighting is colored (yellow/blue/green); the remaining static layer is grey,
+  confirming the depth/prepass path is unwarped.
 - **Lab build added in the same pending batch:** feature version `0.2.0`,
   `PerFrame` is 64 bytes, and the new runtime controls are:
   `CurvatureMode` (parabolic/spherical vertical/spherical full), `TreeMode`
@@ -116,11 +122,13 @@
 
 ## Next test sequence
 
-1. Commit/push the `VanillaBinding.cpp` VS b6 fix; let CI build/deploy.
+1. Commit/push the per-draw VS `b6` binding fix; let CI build/deploy.
 2. Launch via `launch-hctest.bat`, select `HorizontalCurvatureTest`, and let the
    reduced shader set compile.
 3. `coc Whiterun`; wait until the actual world is visible, not the main menu.
-4. With cutoff `0` and k `5e-6`, inspect terrain, object, and tree LOD.
+4. Keep `DebugHue = 1.0` for the pass-color build. The static grey depth layer
+   should disappear or match the colored moving layer. Then set `DebugHue = 0.35`
+   and inspect terrain/object/tree LOD with cutoff `0`, k `5e-6`.
    - All move -> validate and tune production cutoff/elevation.
    - Trees only -> Lighting LOD VS path/permutation or space issue.
    - Nothing -> verify feature loaded, settings, cache, and shader errors.

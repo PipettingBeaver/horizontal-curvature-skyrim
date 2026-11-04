@@ -172,6 +172,8 @@ All of these are b6 uniforms and can be changed in-game without recompiling:
 | `ApplyTrees` | on/off | Isolate DistantTree |
 | `DebugVertexMode` | none, clip X, clip Y, world Z | Prove the VS path independently of curvature math |
 | Old positive control | button: clip-X `0.25 * w` | Re-run the historical horizontal shift that visibly moved LOD |
+| `DebugHue = 1.0` | treats Lighting passes | Green/cyan = LOD, blue = full-detail landscape, orange = skinned, yellow = other; deferred darkened; grey = no color PS |
+| Per-draw VS `b6` bind | always | Ensures the depth prepass sees the same HC settings as the color pass |
 | `CutoffSoftness` | game units | Smooth the hard cutoff to test seams |
 | `CurvatureStrength`, `InnerRadiusCutoff`, `ElevationScaleFactor`, `SeaLevelOffset` | sliders | Existing tuning/debug |
 
@@ -299,6 +301,11 @@ nothing.
 - The user-visible split (debug tint and sliders work, geometry does not) is
   explained by the missing VS `b6` binding above: the pixel stage sees settings,
   the vertex stage sees zero.
+- A second binding issue affected the depth prepass: `Renderer::ResetState` binds
+  feature data once, but some prepass draws reset VS constants afterwards. The
+  colored Lighting passes moved while the depth prepass stayed at the old
+  positions, leaving a grey static layer. `BSShader__BeginTechnique_SetVertexShader`
+  now binds `b6` before every VS draw, including depth prepasses.
 - A temporary `#error` at the top of the feature blocks proved:
   - `HORIZONTAL_CURVATURE` is defined in **Lighting vertex** shaders.
   - It is defined in **DistantTree vertex and pixel** shaders.

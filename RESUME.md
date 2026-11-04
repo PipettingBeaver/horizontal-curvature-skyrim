@@ -150,6 +150,11 @@ Deployed mod path:
   `FeatureData`, VS did not, so `Enable` read zero in the vertex shaders.
   `src/VanillaBinding.cpp` now calls
   `VSSetConstantBuffers(6, 1, &featureDataCB)`. Pending CI build/deploy.
+- **Depth-prepass binding issue:** `Renderer::ResetState` bound b6 only once;
+  the prepass reset VS constants afterwards. The pass-color diagnostic showed
+  the moving color passes and a static grey depth layer.
+  `BSShader__BeginTechnique_SetVertexShader` now binds b6 before every VS draw.
+  This is also pending CI.
 
 ## 5. New controls in 615568bd
 

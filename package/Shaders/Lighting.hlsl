@@ -3414,7 +3414,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 #	endif
 
 #	if !defined(RENDER_DEPTH) && defined(HORIZONTAL_CURVATURE) && (defined(LODLANDNOISE) || defined(LODLANDSCAPE) || defined(LODOBJECTS) || defined(LODOBJECTSHD))
-	if (SharedData::horizontalCurvatureSettings.Enable != 0 && SharedData::horizontalCurvatureSettings.DebugColor != 0) {
+	if (SharedData::horizontalCurvatureSettings.Enable != 0 && SharedData::horizontalCurvatureSettings.DebugColor != 0 &&
+	    SharedData::horizontalCurvatureSettings.DebugHue < 0.99f) {
 #		if defined(LODLANDNOISE) || defined(LODLANDSCAPE)
 		const float hueOffset = 0.0f;
 #		else
@@ -3422,6 +3423,27 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 #		endif
 		float3 debugColor = HorizontalCurvature::GetDebugColor(input.WorldPosition.xy, FrameBuffer::CameraPosAdjust.z, hueOffset);
 		psout.Diffuse.xyz = lerp(psout.Diffuse.xyz, debugColor, 0.85f);
+	}
+#	endif
+
+	// Diagnostic: DebugHue=1.0 paints the Lighting permutation family.
+#	if !defined(RENDER_DEPTH) && defined(HORIZONTAL_CURVATURE)
+	if (SharedData::horizontalCurvatureSettings.Enable != 0 && SharedData::horizontalCurvatureSettings.DebugColor != 0 &&
+	    SharedData::horizontalCurvatureSettings.DebugHue >= 0.99f) {
+		float3 hcPassColor = float3(1.0f, 1.0f, 0.0f);
+#		if defined(LODLANDNOISE) || defined(LODLANDSCAPE)
+		hcPassColor = float3(0.0f, 1.0f, 0.0f);
+#		elif defined(LODOBJECTS) || defined(LODOBJECTSHD)
+		hcPassColor = float3(0.0f, 1.0f, 1.0f);
+#		elif defined(LANDSCAPE)
+		hcPassColor = float3(0.0f, 0.0f, 1.0f);
+#		elif defined(SKINNED)
+		hcPassColor = float3(1.0f, 0.5f, 0.0f);
+#		endif
+#		if defined(DEFERRED)
+		hcPassColor *= 0.45f;
+#		endif
+		psout.Diffuse.xyz = hcPassColor;
 	}
 #	endif
 
