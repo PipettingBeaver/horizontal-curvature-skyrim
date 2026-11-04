@@ -208,6 +208,14 @@ bool Hooks::BSShader_BeginTechnique::thunk(RE::BSShader* shader, uint32_t vertex
 	state->customPixelShader = nullptr;
 	bool shaderFound = func(shader, vertexDescriptor, pixelDescriptor, skipPixelShader);
 
+	// Bind feature data after the engine has finished setting up the technique's
+	// VS constants. Binding inside SetVertexShader is too early for the depth
+	// prepass, which resets its VS constant buffers afterwards.
+	if (state->featureDataCB) {
+		ID3D11Buffer* featureData = state->featureDataCB->CB();
+		globals::d3d::context->VSSetConstantBuffers(6, 1, &featureData);
+	}
+
 	const auto type = shader->shaderType.get();
 	if (!shaderFound && shaderCache->IsEnabled() && type > 0 && type < RE::BSShader::Type::Total &&
 		state->enabledClasses[type - 1] && type != RE::BSShader::Type::Effect) {

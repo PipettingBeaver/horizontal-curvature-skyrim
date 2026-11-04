@@ -304,8 +304,10 @@ nothing.
 - A second binding issue affected the depth prepass: `Renderer::ResetState` binds
   feature data once, but some prepass draws reset VS constants afterwards. The
   colored Lighting passes moved while the depth prepass stayed at the old
-  positions, leaving a grey static layer. `BSShader__BeginTechnique_SetVertexShader`
-  now binds `b6` before every VS draw, including depth prepasses.
+  positions, leaving a grey static layer. Shader blocking isolated it to the
+  vertex-only `Lighting:Vertex:HORIZONTAL_CURVATURE VC` pass; no Pixel shader
+  removed it. `BSShader::BeginTechnique` now binds `b6` after the engine returns,
+  which is later than the original `SetVertexShader` binding.
 - A temporary `#error` at the top of the feature blocks proved:
   - `HORIZONTAL_CURVATURE` is defined in **Lighting vertex** shaders.
   - It is defined in **DistantTree vertex and pixel** shaders.

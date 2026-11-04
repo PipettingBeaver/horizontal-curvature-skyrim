@@ -103,8 +103,10 @@ feature. Read these before changing or testing it:
   VS; this needs a new DLL build before geometry tests are meaningful.
 - The depth prepass had the same problem in a different place:
   `Renderer::ResetState` bound `b6` once, but prepass draws reset VS constants.
-  `BSShader__BeginTechnique_SetVertexShader` now binds `b6` before every VS draw.
-  This is what caused the static grey layer after color geometry moved.
+  Shader blocking isolated the grey layer to the vertex-only
+  `Lighting:Vertex:HORIZONTAL_CURVATURE VC` pass; no Pixel shader removed it.
+  Binding inside `SetVertexShader` was still too early.
+  `BSShader::BeginTechnique` now binds `b6` after the engine returns.
 - The pending lab build adds runtime fallbacks: curvature mode
   (parabolic/spherical vertical/spherical full), tree anchor, per-type apply
   flags, `ApplyToAllLighting`, and a clip/world vertex probe. They are b6

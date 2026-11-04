@@ -85,11 +85,11 @@
 - **Root cause confirmed:** `FeatureData` b6 was bound to PS/CS but not VS.
   `Lighting`/`DistantTree` VS read `Enable = 0`; PS debug tint and sliders still
   worked. `src/VanillaBinding.cpp` now binds b6 to VS.
-- **Second root cause confirmed:** the depth prepass still saw unwarped geometry
-  because per-draw VS constant-buffer resets dropped b6 after
-  `Renderer::ResetState`. The pass-color diagnostic showed the moving Lighting
-  passes colored and a static grey uncolored layer.
-  `BSShader__BeginTechnique_SetVertexShader` now binds b6 before every VS draw.
+- **Second root cause confirmed:** shader blocking isolated the static grey
+  layer to the vertex-only `Lighting:Vertex:HORIZONTAL_CURVATURE VC` pass;
+  no Lighting Pixel shader removes it. This is the depth/prepass path.
+  `BSShader::BeginTechnique` now binds b6 after the engine returns; the earlier
+  `SetVertexShader` binding was too early.
 - The current deployed DLL only has the first fix; the per-draw depth fix and
   pass-color diagnostic are **uncommitted**.
 - Current in-game report with the pass-color build: moving LOD/full-detail
