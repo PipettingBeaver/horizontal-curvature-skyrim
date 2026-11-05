@@ -191,23 +191,36 @@ VS_OUTPUT main(VS_INPUT input)
 	float4 viewPos = mul(modelView, inputPosition);
 #	endif  // SKINNED
 
-#	if defined(HORIZONTAL_CURVATURE) && !defined(SKINNED)
+#	if defined(HORIZONTAL_CURVATURE)
+	const uint hcFlags = SharedData::horizontalCurvatureSettings.Flags;
 	bool hcTypeEnabled = false;
-#		if defined(LODLANDNOISE) || defined(LODLANDSCAPE)
-	hcTypeEnabled = (SharedData::horizontalCurvatureSettings.Flags & HC_FLAG_APPLY_TERRAIN) != 0;
-#		elif defined(LODOBJECTS) || defined(LODOBJECTSHD)
-	hcTypeEnabled = (SharedData::horizontalCurvatureSettings.Flags & HC_FLAG_APPLY_OBJECTS) != 0;
+#		if defined(LODLANDSCAPE)
+	hcTypeEnabled = (hcFlags & HC_FLAG_APPLY_TERRAIN) != 0 && (hcFlags & HC_FLAG_APPLY_LOD_LANDSCAPE) != 0;
+#		elif defined(LODLANDNOISE)
+	hcTypeEnabled = (hcFlags & HC_FLAG_APPLY_TERRAIN) != 0 && (hcFlags & HC_FLAG_APPLY_LOD_LANDNOISE) != 0;
+#		elif defined(LODOBJECTS)
+	hcTypeEnabled = (hcFlags & HC_FLAG_APPLY_OBJECTS) != 0 && (hcFlags & HC_FLAG_APPLY_LOD_OBJECTS) != 0;
+#		elif defined(LODOBJECTSHD)
+	hcTypeEnabled = (hcFlags & HC_FLAG_APPLY_OBJECTS) != 0 && (hcFlags & HC_FLAG_APPLY_LOD_OBJECTSHD) != 0;
+#		elif defined(LANDSCAPE)
+	hcTypeEnabled = (hcFlags & HC_FLAG_APPLY_FULL_LANDSCAPE) != 0;
+#		elif defined(SKINNED)
+	hcTypeEnabled = (hcFlags & HC_FLAG_APPLY_SKINNED) != 0;
 #		else
-	hcTypeEnabled = (SharedData::horizontalCurvatureSettings.Flags & HC_FLAG_APPLY_ALL_LIGHTING) != 0;
+	hcTypeEnabled = (hcFlags & HC_FLAG_APPLY_FULL_OBJECTS) != 0;
 #		endif
+	if ((hcFlags & HC_FLAG_APPLY_ALL_LIGHTING) != 0)
+		hcTypeEnabled = true;
+
 	if (SharedData::horizontalCurvatureSettings.Enable != 0 &&
 	    (hcTypeEnabled || SharedData::horizontalCurvatureSettings.DebugVertexMode != 0)) {
+		const float hcCameraZ = FrameBuffer::CameraPosAdjust.z;
 		if (hcTypeEnabled) {
-			worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy, CameraPosAdjust.z);
-			previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy, CameraPosAdjust.z);
+			worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy, hcCameraZ);
+			previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy, hcCameraZ);
 			if (SharedData::horizontalCurvatureSettings.CurvatureMode == 2) {
-				worldPosition.xy = worldPosition.xy * HorizontalCurvature::ComputeXZScale(worldPosition.xy, CameraPosAdjust.z);
-				previousWorldPosition.xy = previousWorldPosition.xy * HorizontalCurvature::ComputeXZScale(previousWorldPosition.xy, CameraPosAdjust.z);
+				worldPosition.xy = worldPosition.xy * HorizontalCurvature::ComputeXZScale(worldPosition.xy, hcCameraZ);
+				previousWorldPosition.xy = previousWorldPosition.xy * HorizontalCurvature::ComputeXZScale(previousWorldPosition.xy, hcCameraZ);
 			}
 		}
 		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 3) {

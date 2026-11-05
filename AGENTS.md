@@ -97,7 +97,7 @@ feature. Read these before changing or testing it:
   enabled; that produced the grey/grainy world. Use the full-feature baseline
   in `SettingsUser.json.bak.fullfeatures`.
 - Build identity: `describe: 846a2f4` in `CommunityShaders.log`; feature `.ini`
-  version is separate. The pending lab build is Alpha CORE `0.4.0`.
+  version is separate. The pending lab build is Alpha CORE `0.5.0`.
 - **Known root cause, pending CI:** `FeatureData` (`b6`) was bound only to PS/CS,
   not VS. `Lighting`/`DistantTree` vertex shaders therefore saw zero HC settings
   while the PS debug colors worked. `src/VanillaBinding.cpp` now binds `b6` to

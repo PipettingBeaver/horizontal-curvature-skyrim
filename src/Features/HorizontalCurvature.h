@@ -16,7 +16,8 @@ struct HorizontalCurvature : Feature
 	virtual inline std::string_view GetShaderDefineName() override { return "HORIZONTAL_CURVATURE"; }
 	virtual bool HasShaderDefine(RE::BSShader::Type a_type) override
 	{
-		return a_type == RE::BSShader::Type::Lighting || a_type == RE::BSShader::Type::DistantTree;
+		return a_type == RE::BSShader::Type::Lighting ||
+		       a_type == RE::BSShader::Type::DistantTree;
 	}
 	virtual std::string_view GetCategory() const override { return FeatureCategories::kLandscapeAndTextures; }
 
@@ -68,11 +69,18 @@ struct HorizontalCurvature : Feature
 		uint32_t DebugVertexMode = 0;     ///< DebugVertexMode value.
 		float DebugVertexAmount = 0.25f;  ///< Clip/world offset multiplier for the vertex probe.
 
-		bool ApplyToAllLighting = false;  ///< Test: apply to non-LOD Lighting VS permutations too.
-		bool ApplyTerrain = true;         ///< Apply to LOD landscape.
-		bool ApplyObjects = true;         ///< Apply to LOD objects.
-		bool ApplyTrees = true;           ///< Apply to DistantTree LOD.
-		bool Raise = false;               ///< Invert the vertical curvature: raise instead of lower.
+		bool ApplyToAllLighting = false;        ///< Test: apply to non-LOD Lighting VS permutations too.
+		bool ApplyTerrain = true;               ///< Apply to LOD landscape.
+		bool ApplyObjects = true;               ///< Apply to LOD objects (group master).
+		bool ApplyTrees = true;                 ///< Apply to DistantTree LOD.
+		bool ApplyLODLandscape = true;          ///< Apply to LODLANDSCAPE.
+		bool ApplyLODLandNoise = true;          ///< Apply to LODLANDNOISE.
+		bool ApplyLODObjects = true;            ///< Apply to LODOBJECTS.
+		bool ApplyLODObjectsHD = true;          ///< Apply to LODOBJECTSHD.
+		bool ApplyFullDetailLandscape = false;  ///< Apply to full-detail LANDSCAPE.
+		bool ApplyFullDetailObjects = false;    ///< Apply to other full-detail Lighting.
+		bool ApplySkinned = false;              ///< Apply to skinned Lighting.
+		bool Raise = false;                     ///< Invert the vertical curvature: raise instead of lower.
 	};
 	Settings settings;
 

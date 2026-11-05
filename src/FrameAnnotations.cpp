@@ -208,21 +208,6 @@ namespace FrameAnnotations
 		static inline REL::Relocation<decltype(thunk)> func;
 	};
 
-	// The real z-prepass call used by Terrain Blending; the Main_RenderDepth
-	// detour above is a different depth call. TEMPORARY diagnostic only.
-	struct Main_RenderDepth_ZPrepass
-	{
-		static void thunk(bool a1, bool a2)
-		{
-			if (globals::features::horizontalCurvature.loaded &&
-			    globals::features::horizontalCurvature.settings.Enable) {
-				return;
-			}
-			func(a1, a2);
-		}
-		static inline REL::Relocation<decltype(thunk)> func;
-	};
-
 	struct Main_RenderShadowmasks
 	{
 		static void thunk(bool a1)
@@ -955,7 +940,6 @@ namespace FrameAnnotations
 
 		stl::detour_thunk<BSBatchRenderer_RenderBatches>(REL::RelocationID(100852, 107642));
 		stl::detour_thunk<Main_RenderDepth>(REL::RelocationID(100421, 107139));
-		stl::write_thunk_call<Main_RenderDepth_ZPrepass>(REL::RelocationID(35560, 36559).address() + REL::Relocate(0x395, 0x395));
 		stl::detour_thunk<Main_RenderWorld>(REL::RelocationID(100424, 107142));
 		stl::detour_thunk<Main_RenderFirstPersonView>(REL::RelocationID(100411, 107129));
 		stl::detour_thunk<Main_RenderPlayerView>(REL::RelocationID(35560, 36559));

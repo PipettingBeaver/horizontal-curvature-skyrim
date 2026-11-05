@@ -22,6 +22,13 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	ApplyTerrain,
 	ApplyObjects,
 	ApplyTrees,
+	ApplyLODLandscape,
+	ApplyLODLandNoise,
+	ApplyLODObjects,
+	ApplyLODObjectsHD,
+	ApplyFullDetailLandscape,
+	ApplyFullDetailObjects,
+	ApplySkinned,
 	Raise)
 
 HorizontalCurvature::PerFrame HorizontalCurvature::GetCommonBufferData() const
@@ -40,7 +47,14 @@ HorizontalCurvature::PerFrame HorizontalCurvature::GetCommonBufferData() const
 	data.Flags = (settings.ApplyToAllLighting ? 1u : 0u) |
 	             (settings.ApplyTerrain ? 2u : 0u) |
 	             (settings.ApplyObjects ? 4u : 0u) |
-	             (settings.ApplyTrees ? 8u : 0u);
+	             (settings.ApplyTrees ? 8u : 0u) |
+	             (settings.ApplyLODLandscape ? 16u : 0u) |
+	             (settings.ApplyLODLandNoise ? 32u : 0u) |
+	             (settings.ApplyLODObjects ? 64u : 0u) |
+	             (settings.ApplyLODObjectsHD ? 128u : 0u) |
+	             (settings.ApplyFullDetailLandscape ? 256u : 0u) |
+	             (settings.ApplyFullDetailObjects ? 512u : 0u) |
+	             (settings.ApplySkinned ? 1024u : 0u);
 	data.DebugVertexAmount = settings.DebugVertexAmount;
 	data.CutoffSoftness = settings.CutoffSoftness;
 	data.Direction = settings.Raise ? -1.0f : 1.0f;
@@ -143,6 +157,13 @@ void HorizontalCurvature::DrawSettings()
 	ImGui::Checkbox(T(TKEY("apply_terrain"), "Apply to Terrain LOD"), &settings.ApplyTerrain);
 	ImGui::Checkbox(T(TKEY("apply_objects"), "Apply to Object LOD"), &settings.ApplyObjects);
 	ImGui::Checkbox(T(TKEY("apply_trees"), "Apply to Tree LOD"), &settings.ApplyTrees);
+	ImGui::Checkbox(T(TKEY("apply_lod_landscape"), "Apply to LOD Landscape"), &settings.ApplyLODLandscape);
+	ImGui::Checkbox(T(TKEY("apply_lod_landnoise"), "Apply to LOD Land Noise"), &settings.ApplyLODLandNoise);
+	ImGui::Checkbox(T(TKEY("apply_lod_objects"), "Apply to LOD Objects"), &settings.ApplyLODObjects);
+	ImGui::Checkbox(T(TKEY("apply_lod_objects_hd"), "Apply to LOD Objects HD"), &settings.ApplyLODObjectsHD);
+	ImGui::Checkbox(T(TKEY("apply_full_landscape"), "Apply to Full-detail Landscape"), &settings.ApplyFullDetailLandscape);
+	ImGui::Checkbox(T(TKEY("apply_full_objects"), "Apply to Full-detail Objects"), &settings.ApplyFullDetailObjects);
+	ImGui::Checkbox(T(TKEY("apply_skinned"), "Apply to Skinned"), &settings.ApplySkinned);
 	ImGui::Checkbox(T(TKEY("apply_all_lighting"), "Apply to All Lighting (test)"), &settings.ApplyToAllLighting);
 	if (auto _tt = Util::HoverTooltipWrapper()) {
 		ImGui::Text("%s", T(TKEY("apply_all_lighting_tooltip"),

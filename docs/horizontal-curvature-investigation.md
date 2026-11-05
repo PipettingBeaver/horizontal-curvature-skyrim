@@ -264,19 +264,86 @@ actual z-prepass hook used by Terrain Blending, or use
 passes. This should explain why nearby full-detail geometry is unaffected and
 distance LOD leaves a grey depth/weather shell.
 
-## Build 0.4.0 scope
+## Build 0.4.0 result
 
-The first 0.4.0 build is focused on the newly identified **actual z-prepass**
-hook (`REL::RelocationID(35560, 36559)` + `0x395`). The earlier
-`FrameAnnotations::Main_RenderDepth` skip was a different depth call and has
-been removed. This build also removes the shadow-mask skip.
+The real z-prepass skip was tested and did not remove the grey layer; the
+temporary skip has been removed for the next build.
 
-`Main_RenderDepth_ZPrepass` is a temporary call-site diagnostic: it returns
-without invoking the original z-prepass while HC is loaded and enabled.
+## Build 0.5.0 scope
 
-The broader granular toggles, Grass/Water/Sky hooks, and pass probe slider are
-deferred until this focused test tells us whether the real z-prepass is the grey
-layer source. Feature version is `0.4.0`.
+- Remove the failed z-prepass skip.
+- Add granular Lighting apply switches:
+  LOD landscape, LOD land noise, LOD objects, LOD objects HD,
+  full-detail landscape, full-detail objects, skinned.
+- Keep Terrain/Objects group masters, Tree LOD, All Lighting, and Raise.
+- Grass/Water/Sky actual warping is deferred because those shaders use
+  different vertex spaces; they are not exposed as dead switches yet.
+- Feature version `0.5.0`.
+
+## Build 0.4.0 result
+
+Build `2fef14f` / feature `0.4.0` was deployed and loaded. It contains only the
+focused real-z-prepass test; it does not contain the new granular toggles,
+Grass/Water/Sky hooks, or probe slider.
+
+Result with HC enabled: distant terrain turned grey and did not visibly move.
+Skipping the `35560/36559 + 0x395` call is therefore not a usable fix; the call
+is likely genuinely needed for depth coverage. The next approach must warp or
+selectively manage that depth pass, not skip the whole call.
+
+The existing ApplyAll/Raise controls should still be present in 0.3.0+ builds;
+if the menu shows only the three apply checkboxes, scroll the feature page.
+
+## Z-prepass output and full-detail transparent walls
+
+`ToggleZPrepassOutput` is an engine debug view: it displays the z-prepass output
+instead of the normal color/fog composition. It does not disable the z-prepass
+or change HC. That is why the grey layer disappears while the view is on and
+only depth/prepass geometry is visible.
+
+Observed with the transparent Whiterun wall:
+
+- `ApplyToAllLighting = OFF`: the wall does not move and has no grey layer.
+- `ApplyToAllLighting = ON`: the wall moves, and still no separate grey layer is
+  created.
+
+This indicates the transparent wall is full-detail geometry reached only by the
+all-Lighting branch. Moving full-detail alpha/decal geometry is not itself what
+creates the grey shell. The grey remains associated with the terrain-LOD/depth
+path.
+
+## Update: grey applies to moved opaque geometry generally
+
+Latest observations:
+
+- With `ApplyToAllLighting = ON`, rocks right next to the player also move and
+  become grey.
+- Walls do not move under `ApplyToAllLighting`; `ApplyObjects` only covers LOD
+  object draws, not these full-detail walls.
+- `ToggleZPrepassOutput` makes the full walls invisible or entirely grey.
+- The transparent wall/moss overlay can move without producing the grey shell,
+  but the opaque wall/base does not move at all.
+
+Revised conclusion: the grey is not unique to terrain. It appears on any opaque
+geometry moved by HC while its depth/prepass remains at the old position.
+Transparent/decal overlays do not show it the same way. The earlier
+terrain-specific result was because `ApplyTerrain=OFF` stopped the only moving
+geometry in that test.
+
+The wall is a separate unresolved issue: its shader/path is apparently not being
+moved by `ApplyObjects` or `ApplyToAllLighting`. It needs Active Shaders /
+Shader Blocking identification. The transparent piece that moves may be only
+the moss/decal overlay.
+
+Next in-game check:
+
+1. With `ApplyToAllLighting=ON`, open Active Shaders and compare the nearby rock
+   and wall entries.
+2. Block the wall's Lighting VS/PS and see whether only the transparent overlay
+   disappears.
+3. Confirm whether the base wall is absent from the custom shader list or uses a
+   different shader/path.
+4. Use `ToggleZPrepassOutput` as a view only.
 
 ## Runtime settings observed
 

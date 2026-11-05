@@ -19,6 +19,13 @@ namespace HorizontalCurvature
 	#define HC_FLAG_APPLY_TERRAIN 2u
 	#define HC_FLAG_APPLY_OBJECTS 4u
 	#define HC_FLAG_APPLY_TREES 8u
+	#define HC_FLAG_APPLY_LOD_LANDSCAPE 16u
+	#define HC_FLAG_APPLY_LOD_LANDNOISE 32u
+	#define HC_FLAG_APPLY_LOD_OBJECTS 64u
+	#define HC_FLAG_APPLY_LOD_OBJECTSHD 128u
+	#define HC_FLAG_APPLY_FULL_LANDSCAPE 256u
+	#define HC_FLAG_APPLY_FULL_OBJECTS 512u
+	#define HC_FLAG_APPLY_SKINNED 1024u
 
 	float GetDynamicCutoff(float cameraZ)
 	{
