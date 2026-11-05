@@ -72,6 +72,7 @@ struct HorizontalCurvature : Feature
 		bool ApplyTerrain = true;         ///< Apply to LOD landscape.
 		bool ApplyObjects = true;         ///< Apply to LOD objects.
 		bool ApplyTrees = true;           ///< Apply to DistantTree LOD.
+		bool Raise = false;               ///< Invert the vertical curvature: raise instead of lower.
 	};
 	Settings settings;
 
@@ -92,7 +93,7 @@ struct HorizontalCurvature : Feature
 		uint32_t Flags;
 		float DebugVertexAmount;
 		float CutoffSoftness;
-		float pad1;
+		float Direction;  ///< +1 lowers, -1 raises.
 		float pad2;
 	};
 	static_assert(sizeof(PerFrame) % 16 == 0, "HorizontalCurvature::PerFrame must be 16-byte aligned");

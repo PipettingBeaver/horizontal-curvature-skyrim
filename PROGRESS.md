@@ -101,6 +101,9 @@
   custom-warped geometry.
 - `Main_RenderDepth` was skipped in build `ab69d420`; the grey layer remained.
 - Next temporary diagnostic: skip `Main_RenderShadowmasks` as well.
+- With `ApplyTerrain=OFF`, the terrain effect and grey layer both stop; the grey is
+  tied to terrain LOD. `ToggleZPrepassOutput` hides it and shows sparse prepass
+  geometry. A `Raise` switch was added for diagnostics.
 - **Lab build added in the same pending batch:** feature version `0.2.0`,
   `PerFrame` is 64 bytes, and the new runtime controls are:
   `CurvatureMode` (parabolic/spherical vertical/spherical full), `TreeMode`

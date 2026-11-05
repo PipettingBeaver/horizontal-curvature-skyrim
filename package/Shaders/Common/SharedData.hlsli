@@ -503,7 +503,7 @@ namespace SharedData
 		uint Flags;
 		float DebugVertexAmount;
 		float CutoffSoftness;
-		float pad1;
+		float Direction;  // +1 lowers, -1 raises.
 		float pad2;
 	};
 

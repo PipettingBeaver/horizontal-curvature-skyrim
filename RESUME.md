@@ -31,7 +31,7 @@ full test plan.
 - Current test settings: `CurvatureStrength=5e-6`, `ElevationScaleFactor=0`,
   `InnerRadiusCutoff=0`, `SeaLevelOffset=0`, `Enable=true`,
   `DebugColor=true`, `DebugHue=0.35`.
-- The feature `.ini` version is `0-2-0` for the lab build; the build hash is the
+- The feature `.ini` version is `0-3-0` for the lab build; the build hash is the
   reliable DLL identifier. Live shader edits do not change the build hash.
 
 ### Deploy / verify (if a new CI artifact is needed)
@@ -178,6 +178,7 @@ Deployed mod path:
   the historical horizontal shift that visibly moved LOD.
 - `DebugVertexAmount`: clip fraction, or 10,000 game units for World Z.
 - `CutoffSoftness`: smooths the deadzone edge to test seams.
+- `Raise`: inverts vertical displacement for z-fighting diagnostics.
 - Existing `Enable`, debug tint/hue, strength, cutoff, elevation, sea level.
 
 ## 6. Current unknowns / decision tree

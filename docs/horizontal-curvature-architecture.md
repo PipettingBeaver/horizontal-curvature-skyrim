@@ -98,7 +98,7 @@ struct alignas(16) PerFrame
     uint32_t Flags;
     float DebugVertexAmount;
     float CutoffSoftness;
-    float pad1;
+    float Direction;
     float pad2;
 };
 ```
@@ -175,6 +175,7 @@ All of these are b6 uniforms and can be changed in-game without recompiling:
 | `DebugHue = 1.0` | treats Lighting passes | Green/cyan = LOD, blue = full-detail landscape, orange = skinned, yellow = other; deferred darkened; grey = no color PS |
 | Per-draw VS `b6` bind | always | Ensures the depth prepass sees the same HC settings as the color pass |
 | `CutoffSoftness` | game units | Smooth the hard cutoff to test seams |
+| `Raise` / `Direction` | on/off | Invert vertical displacement: raise instead of lower, for z-fighting diagnostics |
 | `CurvatureStrength`, `InnerRadiusCutoff`, `ElevationScaleFactor`, `SeaLevelOffset` | sliders | Existing tuning/debug |
 
 The current shader still applies the HC VS block only to non-skinned Lighting

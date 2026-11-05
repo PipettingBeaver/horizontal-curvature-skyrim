@@ -21,7 +21,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	ApplyToAllLighting,
 	ApplyTerrain,
 	ApplyObjects,
-	ApplyTrees)
+	ApplyTrees,
+	Raise)
 
 HorizontalCurvature::PerFrame HorizontalCurvature::GetCommonBufferData() const
 {
@@ -42,6 +43,7 @@ HorizontalCurvature::PerFrame HorizontalCurvature::GetCommonBufferData() const
 	             (settings.ApplyTrees ? 8u : 0u);
 	data.DebugVertexAmount = settings.DebugVertexAmount;
 	data.CutoffSoftness = settings.CutoffSoftness;
+	data.Direction = settings.Raise ? -1.0f : 1.0f;
 	return data;
 }
 
@@ -110,6 +112,12 @@ void HorizontalCurvature::DrawSettings()
 	if (auto _tt = Util::HoverTooltipWrapper()) {
 		ImGui::Text("%s", T(TKEY("cutoff_softness_tooltip"),
 							  "Ramps the deadzone in over this distance instead of starting with a hard edge. 0 is the current hard cutoff."));
+	}
+
+	ImGui::Checkbox(T(TKEY("raise_curvature"), "Curvature Raise (invert)"), &settings.Raise);
+	if (auto _tt = Util::HoverTooltipWrapper()) {
+		ImGui::Text("%s", T(TKEY("raise_curvature_tooltip"),
+							  "Raises affected geometry instead of lowering it. Useful for separating HC-displaced meshes from z-fighting or stale depth copies."));
 	}
 
 	ImGui::SeparatorText(T(TKEY("experimental"), "Experimental / Fallbacks"));

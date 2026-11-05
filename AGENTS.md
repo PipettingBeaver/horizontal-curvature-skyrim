@@ -97,7 +97,7 @@ feature. Read these before changing or testing it:
   enabled; that produced the grey/grainy world. Use the full-feature baseline
   in `SettingsUser.json.bak.fullfeatures`.
 - Build identity: `describe: 846a2f4` in `CommunityShaders.log`; feature `.ini`
-  version is separate. The pending lab build is Alpha CORE `0.2.0`.
+  version is separate. The pending lab build is Alpha CORE `0.3.0`.
 - **Known root cause, pending CI:** `FeatureData` (`b6`) was bound only to PS/CS,
   not VS. `Lighting`/`DistantTree` vertex shaders therefore saw zero HC settings
   while the PS debug colors worked. `src/VanillaBinding.cpp` now binds `b6` to
@@ -111,7 +111,7 @@ feature. Read these before changing or testing it:
   as late as possible; the latter is the last setup point before the draw.
 - The pending lab build adds runtime fallbacks: curvature mode
   (parabolic/spherical vertical/spherical full), tree anchor, per-type apply
-  flags, `ApplyToAllLighting`, and a clip/world vertex probe. They are b6
+  flags, `ApplyToAllLighting`, a clip/world vertex probe, and a `Raise` switch. They are b6
   uniforms, so switching them does not recompile shaders.
 - The **Run Old Positive Control** button restores the historical horizontal
   `0.25 * w` clip-X shift. Use it first: it proves the VS path independently of

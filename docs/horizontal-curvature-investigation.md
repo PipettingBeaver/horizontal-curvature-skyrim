@@ -195,6 +195,24 @@ and enabled. This tests the depth-prepass hypothesis directly:
   z-prepass is the blocker; it must be warped, skipped, or bypassed.
 - If nothing improves → the grey layer is another engine pass.
 
+## LOD terrain result (latest)
+
+With `ApplyToAllLighting = OFF`, lower curvature strength, and cutoff `0`,
+distant terrain LOD visibly descends. The grey layer remains.
+
+This confirms the LOD terrain color path can work without the
+`ApplyToAllLighting` fallback. The remaining grey layer is therefore a separate
+pass/overlay, not the terrain color geometry itself. Next isolation:
+`ApplyTerrain` vs `ApplyObjects` vs `ApplyTrees`, plus z-prepass/shadow-mask
+output. The shadow-mask skip CI is pending.
+With `ApplyTerrain = OFF`, the terrain effect stops and the grey layer also
+disappears, so the grey is tied to the terrain-LOD path. `ApplyObjects` and
+`ApplyTrees` also show grey; `ToggleZPrepassOutput` hides the grey and shows
+only the sparse prepass geometry (LOD terrain and transparent outlines), while
+ordinary opaque objects are absent. A `Curvature Raise` switch has been added
+for diagnostics: it inverts the vertical displacement so HC-affected meshes can
+be distinguished from static/z-fighting copies.
+
 ## Runtime settings observed
 
 Test profile `HorizontalCurvatureTest/skyrimprefs.ini`:

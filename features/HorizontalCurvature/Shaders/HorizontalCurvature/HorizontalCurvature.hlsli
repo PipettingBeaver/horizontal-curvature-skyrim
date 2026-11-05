@@ -53,16 +53,19 @@ namespace HorizontalCurvature
 			return 0.0f;
 
 		const uint mode = SharedData::horizontalCurvatureSettings.CurvatureMode;
+		float drop;
 		if (mode == 1) {
 			const float radius = GetCurvatureRadius();
-			return radius - sqrt(max(0.0f, radius * radius - over * over));
-		}
-		if (mode == 2) {
+			drop = radius - sqrt(max(0.0f, radius * radius - over * over));
+		} else if (mode == 2) {
 			const float radius = GetCurvatureRadius();
 			const float phi = min(over / radius, 1.5f);
-			return (1.0f - cos(phi)) * radius;
+			drop = (1.0f - cos(phi)) * radius;
+		} else {
+			drop = k * over * over;
 		}
-		return k * over * over;
+
+		return (SharedData::horizontalCurvatureSettings.Direction < 0.0f ? -1.0f : 1.0f) * drop;
 	}
 
 	float ComputeXZScale(float2 cameraRelativeXY, float cameraZ)
@@ -83,7 +86,7 @@ namespace HorizontalCurvature
 	float3 GetDebugColor(float2 cameraRelativeXY, float cameraZ, float hueOffset)
 	{
 		const float drop = ComputeDrop(cameraRelativeXY, cameraZ);
-		const float t = saturate(drop / 5000.0f);
+		const float t = saturate(abs(drop) / 5000.0f);
 		return HsvToRgb(frac(SharedData::horizontalCurvatureSettings.DebugHue + hueOffset + t * 0.25f), 1.0f, 1.0f);
 	}
 }
