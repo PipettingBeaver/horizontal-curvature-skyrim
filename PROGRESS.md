@@ -95,8 +95,12 @@
 - The current deployed DLL only has the `7fb44411` fix; `0c0cdeba` passed CI but
   is not deployed yet.
 - Current in-game report with the pass-color build: moving LOD/full-detail
-  Lighting is colored (yellow/blue/green); the remaining static layer is grey,
-  confirming the depth/prepass path is unwarped.
+  Lighting is colored (yellow/blue/green); the remaining static layer is grey.
+- A hardcoded b6-independent clip-X control did not move the grey layer or
+  full-detail trees. This confirms the grey is the engine depth/fog result, not
+  custom-warped geometry.
+- Pending diagnostic: `Main_RenderDepth` is skipped while HC is enabled to test
+  whether removing the z-prepass fixes the opaque culling/grey layer.
 - **Lab build added in the same pending batch:** feature version `0.2.0`,
   `PerFrame` is 64 bytes, and the new runtime controls are:
   `CurvatureMode` (parabolic/spherical vertical/spherical full), `TreeMode`

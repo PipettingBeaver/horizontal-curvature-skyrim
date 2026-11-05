@@ -113,6 +113,63 @@ replaced with a family color:
 Report: the moving ground/LOD is yellow/blue and colored. The static remaining
 layer stays grey. This is consistent with the depth/prepass conclusion.
 
+## Latest visual diagnosis
+
+Reports after the `e81fe677` deployment:
+
+- The grey layer still does not move with cutoff softness.
+- Changing weather (`sw 0010199f`) changes the grey layer's color.
+- `ToggleZPrepassOutput` shows green distant ground, yellow outlines around
+  rocks/Whiterun overlays, and basal water; most opaque objects are absent.
+- `tfc` toward Whiterun reveals z-fighting between the grey/black weather layer
+  and geometry that is not the moss/transparency overlay.
+- Only transparent/moss-style Lighting overlays appear to be moved by HC;
+  opaque walls/buildings mostly disappear from view after the displacement.
+- Maximum curvature appears to move only ~32 units of visible geometry.
+
+The consistent explanation is a depth-prepass mismatch, not a duplicate mesh:
+
+1. The color/opaque vertices move downward with HC.
+2. The depth/prepass still contains their old positions.
+3. The moved opaque pixels fail the depth test and disappear.
+4. Alpha-tested/transparent overlays that do not use the static depth remain
+   visible and are the parts that appear to move.
+5. The old depth is shaded with fog/weather, producing the grey/black layer and
+   z-fighting. Weather changes its color.
+6. No Pixel shader removes it; blocking the shared Lighting VS does, because it
+   removes the geometry that creates the mismatch.
+
+The ~32-unit visible movement is probably only the near/alpha overlay; the
+actual opaque drop is larger but hidden behind the old depth.
+
+Next diagnostic: hardcode a temporary depth/all-Lighting offset to prove whether
+the depth pass is using the custom VS at all. If it is, the remaining fix is to
+bind/warp the z-prepass; if not, disable or bypass the engine z-prepass for HC.
+
+## Hardcoded Lighting VS control (result)
+
+A temporary b6-independent clip-X shift was added to every non-skinned Lighting
+VS. Results:
+
+- The grey/weather layer stayed still.
+- Full-detail trees stayed still.
+- Opaque rock/wall base textures did not move with the shift; only
+  transparent/moss overlays appeared to move.
+- The base geometry often disappeared or looked broken.
+
+Conclusion: the grey layer and opaque depth-culling are not being moved by the
+custom Lighting VS. The grey layer is the engine depth/fog/weather result, not a
+second copy of the custom-warped mesh.
+
+## Pending diagnostic: skip the z-prepass
+
+`Main_RenderDepth` is temporarily skipped while Horizontal Curvature is loaded
+and enabled. This tests the depth-prepass hypothesis directly:
+
+- If the grey layer disappears and opaque geometry remains visible → the
+  z-prepass is the blocker; it must be warped, skipped, or bypassed.
+- If nothing improves → the grey layer is another engine pass.
+
 ## Runtime settings observed
 
 Test profile `HorizontalCurvatureTest/skyrimprefs.ini`:
@@ -125,9 +182,10 @@ bDeferredShadows=0
 bShadowsOnGrass=0
 ```
 
-The grey layer remained with all of these set, and after the per-draw
-`SetVertexShader` b6 fix (`7fb44411`). The current pending fix is the later
-`BeginTechnique` binding (`0c0cdeba`).
+The grey layer remained with all of these set, after the `SetVertexShader`
+(`7fb44411`), `BeginTechnique` (`0c0cdeba`), and `SetupGeometry` (`e81fe677`)
+b6 binding attempts. `bDisableZPrepassOutput=1` was also tried without removing
+it.
 
 `bSAOEnable`, `bScreenSpaceReflectionEnabled`, `bIBLFEnable`, and
 `bVolumetricLightingEnable` remain enabled. They have not yet been isolated.

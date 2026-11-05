@@ -1,5 +1,6 @@
 #include "FrameAnnotations.h"
 
+#include "Globals.h"
 #include "State.h"
 #include "Util.h"
 
@@ -198,6 +199,15 @@ namespace FrameAnnotations
 		static void thunk(bool a1, bool a2)
 		{
 			globals::state->BeginPerfEvent("Depth");
+
+			// TEMPORARY diagnostic: skip the engine z-prepass while HC is enabled.
+			// This tests whether the static grey layer and opaque depth culling are
+			// caused by the unwarped depth prepass.
+			if (globals::features::horizontalCurvature.loaded &&
+			    globals::features::horizontalCurvature.settings.Enable) {
+				globals::state->EndPerfEvent();
+				return;
+			}
 
 			func(a1, a2);
 
