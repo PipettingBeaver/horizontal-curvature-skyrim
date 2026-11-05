@@ -1,5 +1,6 @@
 #include "FrameAnnotations.h"
 
+#include "Features/HorizontalCurvature.h"
 #include "Globals.h"
 #include "State.h"
 #include "Util.h"
