@@ -223,6 +223,13 @@ namespace FrameAnnotations
 		{
 			globals::state->BeginPerfEvent("Shadowmasks");
 
+			// TEMPORARY diagnostic: skip the shadow-mask pass while HC is enabled.
+			if (globals::features::horizontalCurvature.loaded &&
+			    globals::features::horizontalCurvature.settings.Enable) {
+				globals::state->EndPerfEvent();
+				return;
+			}
+
 			func(a1);
 
 			globals::state->EndPerfEvent();

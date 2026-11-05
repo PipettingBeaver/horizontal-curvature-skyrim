@@ -99,8 +99,8 @@
 - A hardcoded b6-independent clip-X control did not move the grey layer or
   full-detail trees. This confirms the grey is the engine depth/fog result, not
   custom-warped geometry.
-- Pending diagnostic: `Main_RenderDepth` is skipped while HC is enabled to test
-  whether removing the z-prepass fixes the opaque culling/grey layer.
+- `Main_RenderDepth` was skipped in build `ab69d420`; the grey layer remained.
+- Next temporary diagnostic: skip `Main_RenderShadowmasks` as well.
 - **Lab build added in the same pending batch:** feature version `0.2.0`,
   `PerFrame` is 64 bytes, and the new runtime controls are:
   `CurvatureMode` (parabolic/spherical vertical/spherical full), `TreeMode`

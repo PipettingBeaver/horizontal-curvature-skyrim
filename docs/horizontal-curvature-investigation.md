@@ -174,17 +174,19 @@ the moss overlay vs the top ground/base:
 - The moss overlay additionally has `Decal` and `Dynamic_Decal` in Shader
   Flags 1, and `No_Fade` in Shader Flags 2.
 - The base has neither `Decal` nor `Dynamic_Decal`.
+- Both BSTriShape pieces are owned by the same NiNode under the BSFadeNode.
+- The moss/transparent piece has a `NiAlphaProperty`; the opaque base does not.
 
-This supports the depth/pass explanation: the moss is a separate decal/dynamic
-decal shape rendered through a different pass, while the opaque base is subject
-to the static z-prepass. The base can be moved in the color pass but culled by
-the unwarped depth prepass; the decal remains visible.
+This supports the depth/pass explanation: the moss is a separate alpha/decal
+shape rendered through the transparency/decal pass, while the opaque base is
+subject to the static z-prepass. The base can be moved in the color pass but
+culled by the unwarped depth prepass; the transparent decal remains visible.
 
 It does not indicate a separate shader class or skinned base. A watchtower NIF
 would be a useful second sample, but only if it shows a different shader type or
 skin setup.
 
-## Pending diagnostic: skip the z-prepass
+## Pending diagnostic: skip depth and shadow masks
 
 `Main_RenderDepth` is temporarily skipped while Horizontal Curvature is loaded
 and enabled. This tests the depth-prepass hypothesis directly:
