@@ -213,6 +213,71 @@ ordinary opaque objects are absent. A `Curvature Raise` switch has been added
 for diagnostics: it inverts the vertical displacement so HC-affected meshes can
 be distinguished from static/z-fighting copies.
 
+## Raise test result
+
+`Curvature Raise` works: distant terrain visibly rises instead of lowering.
+The grey layer stays at the original height. Close/full-detail objects do not
+rise with `ApplyToAllLighting = OFF`; that is expected because they are outside
+the LOD path. Trees/grass classifications in pass colors are unreliable because
+some are full-detail, alpha, or separate shader types.
+
+`ToggleZPrepassOutput` hides the grey layer. The temporarily skipped
+`Main_RenderDepth` and `Main_RenderShadowmasks` paths did not remove it. The
+remaining grey is therefore another engine depth/prepass or base representation,
+not the custom Lighting color path.
+
+Next step: identify the actual z-prepass/depth pass with FrameAnnotations or
+RenderDoc, then warp/disable that pass. More per-type in-game toggles are not
+useful.
+
+## Community Shaders z-prepass reference (important)
+
+Upstream Community Shaders' **Terrain Blending** feature uses a different
+`Main_RenderDepth` hook from the one in this fork's `FrameAnnotations`:
+
+- Terrain Blending: `REL::RelocationID(35560, 36559)` — identifies the actual
+  z-prepass versus shadow depth.
+- Our diagnostic skip used `REL::RelocationID(100421, 107139)`, which is a
+  different depth call. That explains why skipping it did not remove the grey.
+
+Terrain Blending also hooks:
+
+- `BSBatchRenderer__RenderPassImmediately` at
+  `REL::RelocationID(100852, 107642)`, to manipulate depth writes, depth test,
+  and alpha blending per render pass.
+- It renders a separate terrain depth target and blends it with the main depth
+  via a compute shader.
+
+Other relevant references:
+
+- Community Shaders VR z-fighting fix commit `746a41f`: adjusts
+  `LODLANDSCAPE`/`LODLANDNOISE` view-space Z for distant mountains.
+- DynDOLOD: SS/VR terrain LOD is lowered in the distance by a baked shader to
+  counter z-fighting with object LOD; object/tree LOD does not get the same
+  lowering automatically.
+- Unity Curved World / No Rest for the Wicked: apply the same transform to all
+  coherent passes and rework culling/lighting for the curved world.
+
+Next code direction: replace the ineffective `Main_RenderDepth` skip with the
+actual z-prepass hook used by Terrain Blending, or use
+`BSBatchRenderer_RenderPassImmediately` to manipulate only the affected depth
+passes. This should explain why nearby full-detail geometry is unaffected and
+distance LOD leaves a grey depth/weather shell.
+
+## Build 0.4.0 scope
+
+The first 0.4.0 build is focused on the newly identified **actual z-prepass**
+hook (`REL::RelocationID(35560, 36559)` + `0x395`). The earlier
+`FrameAnnotations::Main_RenderDepth` skip was a different depth call and has
+been removed. This build also removes the shadow-mask skip.
+
+`Main_RenderDepth_ZPrepass` is a temporary call-site diagnostic: it returns
+without invoking the original z-prepass while HC is loaded and enabled.
+
+The broader granular toggles, Grass/Water/Sky hooks, and pass probe slider are
+deferred until this focused test tells us whether the real z-prepass is the grey
+layer source. Feature version is `0.4.0`.
+
 ## Runtime settings observed
 
 Test profile `HorizontalCurvatureTest/skyrimprefs.ini`:
@@ -282,6 +347,150 @@ it.
    - Tune cutoff, softness, elevation, sea level.
 5. Only after the visual result is clean, remove the temporary pass-color
    diagnostic and ship-gate the debug controls.
+
+
+## Grey static layer: consolidated findings and test matrix
+
+### What the evidence says
+
+- The grey layer is generated while Horizontal Curvature is active; disabling
+  the feature removes it.
+- Shader blocking: only `Lighting:Vertex:HORIZONTAL_CURVATURE VC`
+  (descriptor `0x1`) affects it. No Lighting **Pixel** row removes it.
+- `ApplyTerrain = OFF` stops the terrain curvature and also makes the grey layer
+  disappear. The grey is tied to the terrain-LOD path.
+- `Curvature Raise` lifts terrain correctly, but the grey stays at the original
+  height.
+- `ToggleZPrepassOutput` hides the grey and shows sparse prepass geometry:
+  distant LOD terrain and transparent outlines; ordinary opaque objects are
+  absent.
+- Weather (`sw 0010199f`) changes the grey layer's color.
+- Shadows off, TAA off, `bLodZPrepass=0`,
+  `bEnableFrontToBackPrepass=0`, and `bDisableZPrepassOutput=1` did not remove
+  it.
+- A b6-independent hardcoded clip-X shift did not move the grey layer or
+  full-detail trees. It did move some transparent/moss overlays.
+- The NIF base and moss are both `BSLightingShaderProperty`/Default and share a
+  NiNode. The moss piece has `Decal | Dynamic_Decal` and `NiAlphaProperty`; the
+  base does not.
+
+Best current explanation: the custom Lighting color pass moves, but the
+engine depth/z-prepass or a second depth/fog representation stays at the old
+position. Opaque moved LOD fails the old depth test and disappears; transparent
+decal/alpha overlays survive because they do not depend on that depth the same
+way. The grey shell is the old depth/fog/weather result, not a duplicate of the
+custom-warped mesh.
+
+### Important hook correction
+
+Upstream Terrain Blending identifies the real z-prepass with:
+
+```text
+REL::RelocationID(35560, 36559)
+```
+
+Our diagnostic skip used `FrameAnnotations`' `Main_RenderDepth` at:
+
+```text
+REL::RelocationID(100421, 107139)
+```
+
+That is a different depth call. This is why skipping `Main_RenderDepth` and
+`Main_RenderShadowmasks` did not affect the grey.
+
+Terrain Blending also uses `BSBatchRenderer__RenderPassImmediately`
+(`REL::RelocationID(100852, 107642)`) to manipulate depth writes, depth test,
+and alpha blending per pass, and renders a separate terrain depth target that
+it blends with the main depth via a compute shader.
+
+### In-game matrix
+
+Run each row from a safe state unless noted. Record terrain, objects, trees,
+grass, grey, and z-fighting separately.
+
+| Test | Settings | Result to look for |
+| --- | --- | --- |
+| A | `ApplyTerrain=OFF`, others OFF, DebugHue normal | No terrain movement; grey gone. Confirms terrain association |
+| B | `ApplyTerrain=ON`, Objects/Trees OFF, cutoff 0, low strength | LOD terrain moves; grey should remain at old height |
+| C | Same as B + `Raise=ON` | Terrain rises; grey independent |
+| D | Same as B + `DebugHue=1.0` | Moving terrain colored; grey uncolored = no color PS |
+| E | Same as B + `ToggleZPrepassOutput` | Grey hidden; sparse prepass geometry only |
+| F | Same as B + weather change (`sw 0010199f`) | Grey color changes = fog/weather/depth |
+| G | `ApplyObjects=OFF` / `ApplyTrees=OFF` individually | Which object/tree category is present in the grey/z-fight |
+| H | Enable **Terrain Blending** (if compatible) | Does its depth handling change the grey? Record before/after |
+| I | Correct z-prepass hook test (future build) | Grey gone / opaque restored = z-prepass confirmed |
+| J | `BSBatchRenderer__RenderPassImmediately` depth-write test (future build) | Isolates the pass without skipping the whole prepass |
+
+### Future diagnostic build
+
+1. Remove the temporary `Main_RenderDepth`/`Main_RenderShadowmasks` skips from
+   `FrameAnnotations.cpp`.
+2. Add a test using the real z-prepass hook (`35560/36559`) or
+   `BSBatchRenderer__RenderPassImmediately`.
+3. Keep `Raise`.
+4. Add granular apply toggles:
+   LOD landscape, LOD land noise, LOD objects, LOD objects HD,
+   full-detail landscape, full-detail objects, skinned, tree LOD,
+   grass, water, sky.
+5. Add a pass-level probe slider, not just a pixel-shader color probe:
+   use `BSBatchRenderer__RenderPassImmediately`/render flags to tint or log
+   depth, shadowmask, terrain, opaque, alpha, and shader-class passes.
+6. Bump to `0.4.0` and run CI.
+
+### Rollback / safe baseline
+
+Current deployed `26917ab3` contains the temporary skip code. It is safe only
+while HC is disabled.
+
+Safe settings already applied:
+
+```json
+"Disable at Boot": { "HorizontalCurvature": true },
+"Horizontal Curvature": { "Enable": false },
+"Advanced": { "Developer Mode": false, "Frame Annotations": false }
+```
+
+HCTest profile test settings removed:
+
+```ini
+bLodZPrepass=0
+bDisableZPrepassOutput=1
+bEnableFrontToBackPrepass=0
+bDeferredShadows=0
+bShadowsOnGrass=0
+```
+
+`bUseTAA=0` remains from the original profile.
+
+To recover normal rendering:
+
+1. Keep `HorizontalCurvature` disabled at boot.
+2. Launch `launch-hctest.bat`.
+3. If still broken, clear `ShaderCache/Lighting` and `ShaderCache/DistantTree`,
+   then relaunch.
+4. Do not re-enable HC in `26917ab3`; its diagnostic skips can crash.
+
+### Build / hook history
+
+| Commit | Meaning |
+| --- | --- |
+| `e2fcc2c1` | lab controls + first VS b6 binding |
+| `7fb44411` | per-draw b6 in `SetVertexShader` (too early) |
+| `0c0cdeba` | b6 after `BeginTechnique` (still too early) |
+| `e81fe677` | b6 in `Lighting SetupGeometry`; no fix for grey |
+| `7962bc30` | skip `FrameAnnotations` `Main_RenderDepth` (wrong hook) |
+| `ab69d420` | compile/include fix for skip test |
+| `6296b6c3` | skip `Main_RenderShadowmasks` (no effect) |
+| `26917ab3` | Raise + skips; current deployed, unsafe with HC on |
+
+### Rule for future changes
+
+- Keep the current safe baseline until a clean build without skips is deployed.
+- Do not mix shader source edits with a deployed DLL whose FeatureData layout
+  differs.
+- Always clear at least `ShaderCache/Lighting` and `ShaderCache/DistantTree`
+  after editing those shader files/includes.
+- Use the correct z-prepass hook, not the 100421 `Main_RenderDepth` call.
 
 ## Related files
 

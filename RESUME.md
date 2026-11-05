@@ -4,6 +4,19 @@ This file is the single resume point for the next session. It includes the curre
 state, the unfinished test, cross-engine research, implementation tricks, and a
 full test plan.
 
+
+## Immediate safe state
+
+- Latest deployed build `26917ab3` contains temporary depth/shadow-mask skips.
+- HC is disabled at boot and `Enable=false`; normal rendering is restored.
+- HCTest test-only z-prepass/shadow settings have been removed.
+- Do not re-enable HC in `26917ab3`; the skip code can crash.
+- The real z-prepass hook used by Terrain Blending is
+  `REL::RelocationID(35560, 36559)`, not the `Main_RenderDepth` at `100421`
+  used by our failed skip test.
+- Full grey-layer matrix, hook history, safe rollback, and next build plan:
+  `docs/horizontal-curvature-investigation.md`.
+
 ## 1. Project and CI
 
 - Repo: `<REPO_ROOT>`

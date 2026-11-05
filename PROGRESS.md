@@ -101,6 +101,10 @@
   custom-warped geometry.
 - `Main_RenderDepth` was skipped in build `ab69d420`; the grey layer remained.
 - Next temporary diagnostic: skip `Main_RenderShadowmasks` as well.
+- **Build 0.4.0 (focused):** remove the old wrong depth/skip hooks, add a
+  call-site skip for the real z-prepass at `REL::RelocationID(35560, 36559)` +
+  `0x395`, and keep `Raise`. Broader granular toggles/Grass/Water/Sky/probe
+  deferred until this result.
 - With `ApplyTerrain=OFF`, the terrain effect and grey layer both stop; the grey is
   tied to terrain LOD. `ToggleZPrepassOutput` hides it and shows sparse prepass
   geometry. A `Raise` switch was added for diagnostics.
