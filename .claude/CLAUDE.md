@@ -1,5 +1,14 @@
 # CLAUDE.md
 
+## Path anonymization
+
+This repository is published with anonymized local paths: `<HOME>`,
+`<PROJECTS_DIR>`, `<REPO_ROOT>`, `<DATA_MOUNT>`, `<GAME_MOUNT>`,
+`<MO2_INSTANCE>`, and `<WINDOWS_MOUNT>` are placeholders. The real values are
+in the untracked `LOCAL-PATHS.md` at the repo root (never commit or publish
+it). When writing docs or scripts, use the placeholders, never real local
+paths or personal emails.
+
 ## Build
 
 Windows-only (Visual Studio + Windows SDK). From WSL, run build commands through PowerShell:

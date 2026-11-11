@@ -1,440 +1,454 @@
-# Horizontal Curvature — Resume / Research / Test Plan
+# Horizontal Curvature — Resume Brief (Phase 0/1)
 
-This file is the single resume point for the next session. It includes the current
-state, the unfinished test, cross-engine research, implementation tricks, and a
-full test plan.
+Written 2026-11-10 for a fresh agent (Sonnet). This file **supersedes** the prior
+resume. The chronological history, shader keys, and past in-game reports remain
+in `docs/horizontal-curvature-investigation.md`; treat those reports as
+hypotheses, not facts.
 
+Your job is not to add more toggles. It is to answer one question with evidence:
 
-## Immediate safe state
+> **Does the pass that writes depth / the deferred G-buffer use the same warped
+> vertex position as the pass that writes color?**
 
-- Latest deployed build `26917ab3` contains temporary depth/shadow-mask skips.
-- HC is disabled at boot and `Enable=false`; normal rendering is restored.
-- HCTest test-only z-prepass/shadow settings have been removed.
-- Do not re-enable HC in `26917ab3`; the skip code can crash.
-- The real z-prepass hook used by Terrain Blending is
-  `REL::RelocationID(35560, 36559)`, not the `Main_RenderDepth` at `100421`
-  used by our failed skip test.
-- Full grey-layer matrix, hook history, safe rollback, and next build plan:
-  `docs/horizontal-curvature-investigation.md`.
+Until that is answered, every visual test is ambiguous.
 
-## 1. Project and CI
+---
+
+## 0. Operating rules (read first)
+
+1. **One variable per run.** Do not combine `ApplyToAllLighting`, `DebugHue`,
+   `Raise`, strength, cutoff, and skip flags in one test. Past conclusions are
+   contaminated by exactly that.
+2. **Record the build hash and the cache state.** A result without
+   `describe:` and a statement about `ShaderCache` is not evidence.
+3. **If a result contradicts the code, the test state is wrong until proven
+   otherwise.** Re-read the shader and C++ before inventing a new theory.
+4. **Prefer numbers to impressions.** Shader key, constant-buffer value,
+   `SV_Position.z`, depth-buffer value, world-space displacement.
+5. **Do not add runtime toggles.** The remaining problem is not a missing
+   control.
+6. **Do not ship or test with the `Main_RenderDepth` / `Main_RenderShadowmasks`
+   skip code.** It is unsafe with HC enabled. See §2.
+
+---
+
+## 1. Current state and safe baseline
 
 - Repo: `<REPO_ROOT>`
 - Branch: `horizontal-curvature`
 - Remote: `git@github.com:PipettingBeaver/horizontal-curvature-skyrim.git`
-  (SSH; the key is passphrase-protected. `gh` HTTPS works for downloads/runs but
-  lacks the `workflow` scope needed to push workflow changes.)
-- Latest pushed commit: `0c0cdeba fix(horizontal-curvature): bind b6 after setup`
-- CI workflow: `.github/workflows/build-fork.yml`
-- CI runs on GitHub-hosted Windows runners. **The local machine does not need to stay on.**
-- Failed CI run: `41418566747`
-  - C++ and AIO package build succeeded.
-  - Shader validation failed on `DistantTree` depth permutations:
-    `DistantTree:Pixel:10001` and `Pixel:1` reported
-    `X3018: invalid subscript 'WorldPosition'`.
-  - Cause: the debug-color block was outside the `RENDER_DEPTH` guard, but the
-    depth PS input has `Depth`, not `WorldPosition`.
-  - Fix: wrap the debug block in `!defined(RENDER_DEPTH)` (and guard the Lighting
-    debug block too).
-  - Added per-LOD debug hue offsets: terrain hue +0.0, object +0.33, tree +0.66.
-  - Fork CI now uses the faster `PR` preset for the C++/AIO build; shader
-    validation remains `ALL`.
-- CI run `41816433069` passed for `0c0cdeba`; the AIO is not deployed yet.
-- Prior deployed lab build: `7fb44411` (`41803166595`).
-- Current test settings: `CurvatureStrength=5e-6`, `ElevationScaleFactor=0`,
-  `InnerRadiusCutoff=0`, `SeaLevelOffset=0`, `Enable=true`,
-  `DebugColor=true`, `DebugHue=0.35`.
-- The feature `.ini` version is `0-3-0` for the lab build; the build hash is the
-  reliable DLL identifier. Live shader edits do not change the build hash.
+  (passphrase-protected SSH; `gh` HTTPS works for downloads/runs but lacks the
+  `workflow` scope)
+- HEAD at the time of writing: `ea9930e6 feat(horizontal-curvature): add apply switches`
+- Feature version: `0-5-0` (`features/HorizontalCurvature/Shaders/Features/HorizontalCurvature.ini`)
+- CI: `.github/workflows/build-fork.yml` (GitHub-hosted Windows runner; local
+  machine does not need to stay on). **CI quota is nearly exhausted** (see §6);
+  do not run a Fork Build without checking billing first.
+- **Currently deployed (2026-11-10):** the `ea9930e6` AIO (safe; no debug skips)
+  plus the working-tree `DistantTree.hlsl` and `Lighting.hlsl` copied into
+  `mods/Community Shaders Dev/Shaders/`. `overwrite/ShaderCache/Lighting` and
+  `DistantTree` were deleted. The old `26917ab3` skip build is no longer
+  deployed.
+- In the reduced hctest profile HC is loaded at boot but the runtime `Enable` is
+  false; normal rendering is restored. Do not re-enable HC on a build containing
+  the old skips.
+- **Utility probe:** `package/Shaders/Utility.hlsl` now has an `HC_PROBE`
+  clip-X block gated to `RENDER_DEPTH` + LOD/tree. It is copied to the deployed
+  mod and validated with `HC_PROBE` (446 variants, 0 warnings/errors).
+- **Test settings:** `SettingsUser.json.bak.hctest` now enables Developer
+  Tools/RenderDoc, keeps `Shader Defines` empty, and leaves HC neutral/off.
+  `launch-hctest.bat` applies it. The in-game flow is
+  `docs/horizontal-curvature-troubleshooting-flow.md`.
+- **Critic packet:** `docs/horizontal-curvature-critic-brief.md`.
 
-### Deploy / verify (if a new CI artifact is needed)
+### Safe settings to restore normal play
+
+```json
+"Disable at Boot": { "HorizontalCurvature": true },
+"Horizontal Curvature": { "Enable": false },
+"Advanced": { "Developer Mode": false, "Frame Annotations": false }
+```
+
+---
+
+## 2. Ground truth
+
+### Verified in code
+
+- `HORIZONTAL_CURVATURE` is compiled into Lighting VS and DistantTree VS/PS.
+- `FeatureData` is register `b6`; the VS binding was a real past bug
+  (`src/VanillaBinding.cpp:16-18`).
+- **DistantTree applied HC only in the non-depth branch.** In
+  `package/Shaders/DistantTree.hlsl:69-107`, the HC block was inside the `#else`
+  of `#ifdef RENDER_DEPTH`, so the depth permutation never warped tree vertices.
+  **Fixed in the working tree on 2026-11-10**: the HC block now runs before the
+  split and the depth branch uses the warped world position. The edited shader
+  passes local validation (9 variants, 0 warnings/errors); the C++ is unchanged
+  from the deployed `ea9930e6` DLL.
+- **Lighting applies HC outside the `RENDER_DEPTH` guard.** In
+  `package/Shaders/Lighting.hlsl:194-240`, the block runs for the depth
+  permutation too, *if* `b6` is bound at that draw. So the remaining Lighting
+  grey is either a `b6` binding failure at the depth/G-buffer draw, or a
+  different shader/path being used there.
+- **Lighting LOD defines are not missing.** `src/ShaderCache.cpp:180-183`
+  delegates Lighting defines to the engine's vanilla function; the LOD
+  technique selects `LODLANDSCAPE` / `LODLANDNOISE` / `LODOBJECTS` /
+  `LODOBJECTSHD`. The investigation log's claim that "the LOD type defines are
+  not present in the VS permutations" is almost certainly a contaminated test,
+  not a code fact.
+- `Grass Collision` shows the correct pattern: it applies displacement to
+  `msPosition` **before** the `#ifdef RENDER_DEPTH` split, so depth and color use
+  the same position (`package/Shaders/RunGrass.hlsl:195-207`). Use that ordering
+  as the template.
+
+### Reported but not independently verified
+
+- The grey layer is the background/fog composited where moved opaque geometry
+  fails the *unwarped* depth test.
+- Skipping the real z-prepass (`REL::RelocationID(35560, 36559) + 0x395`) did not
+  remove the grey.
+- `ToggleZPrepassOutput` hides the grey and shows only sparse prepass geometry.
+- "Only ~32 units of visible movement" — likely the alpha/decal overlay, not the
+  opaque drop.
+- `ApplyToAllLighting=ON` moves full-detail geometry and produces grey.
+
+### The contradiction that matters
+
+A b6-independent hardcoded clip-X shift did **not** move the grey layer or
+full-detail trees, while the clip-X positive control moved LOD. So "the custom
+VS executes" is narrower than previously stated: it is proven for the LOD color
+path, not for the depth/G-buffer path. Resolve this before tuning the math.
+
+---
+
+## 3. Phase 0 — the decisive experiment
+
+**Goal:** prove whether the depth/G-buffer and color paths agree. Do not tune
+curvature, cutoff, elevation, or modes in this phase.
+
+### 3.1 The DistantTree depth fix (already applied)
+
+`package/Shaders/DistantTree.hlsl` now computes the HC displacement **before**
+the `RENDER_DEPTH` split, and the depth branch uses the warped world position.
+The applied shape is:
+
+```hlsl
+float4 finalModelPosition = float4(input.InstanceData1.xyz + adjustedModelPosition.xyz, 1.0);
+float4 viewPosition = mul(WorldViewProj, finalModelPosition);
+
+float4 worldPosition = mul(World, finalModelPosition);
+float4 previousWorldPosition = mul(PreviousWorld, finalModelPosition);
+bool hcApplied = false;
+
+#if defined(HORIZONTAL_CURVATURE)
+    // HC block on worldPosition / previousWorldPosition.
+    // hcApplied = true only when a displacement or an explicit probe offset occurs.
+#endif
+
+if (hcApplied)
+    viewPosition = mul(FrameBuffer::CameraViewProj, worldPosition);
+
+// clip-space debug offsets (modes 1/2) are applied here, before the split
+
+#ifdef RENDER_DEPTH
+    vsout.Depth.xy = viewPosition.zw;
+    vsout.Depth.zw = input.InstanceData2.zw;
+#else
+    vsout.WorldPosition = worldPosition;
+    vsout.PreviousWorldPosition = previousWorldPosition;
+    vsout.ViewPosition = viewPosition;
+#endif
+
+vsout.Position = viewPosition;
+```
+
+Notes:
+
+- The working-tree change is not committed or deployed; build it as part of
+  Phase 0.
+- `hcApplied` is true only when the displacement is non-zero or a debug probe is
+  active, so an enabled-but-zero-drop tree keeps the original `WorldViewProj`
+  path.
+- `previousWorldPosition` is needed only for motion vectors in the color pass;
+  the depth permutation computes it but does not use it.
+- **Risk:** the depth pass may not bind `FrameBuffer::CameraViewProj`. Verify in
+  RenderDoc. If the matrices differ, the depth tree may shift even for a zero
+  drop; in that case use `CameraViewProj` only for the warped case and keep
+  `WorldViewProj` for the unwarped case.
+- This fix is necessary but not sufficient: if `b6` is unbound in the depth pass,
+  `Enable` still reads 0 and `hcApplied` stays false.
+
+### 3.2 Probe A — Lighting/DistantTree clip-X (runtime, no new code)
+
+The authoritative in-game flow is
+`docs/horizontal-curvature-troubleshooting-flow.md`. Probe A is the existing
+`DebugVertexMode = Clip X` test; it is b6-driven and bypasses the per-type
+gating.
+
+Deploy the clean build with the DistantTree fix. In the in-game UI, set exactly:
+
+| Setting | Value |
+| --- | --- |
+| Enable | on |
+| DebugColor | **off** |
+| CurvatureStrength | `0` |
+| InnerRadiusCutoff | `0` |
+| ElevationScaleFactor | `0` |
+| CutoffSoftness | `0` |
+| ApplyToAllLighting | **off** |
+| ApplyTerrain / ApplyObjects / ApplyTrees | on |
+| All per-LOD and full-detail flags | leave defaults |
+| **DebugVertexMode** | **Clip X** |
+| **DebugVertexAmount** | **0.25** |
+| Raise | off |
+
+`DebugVertexMode != 0` forces the HC vertex block regardless of the per-type
+flags (`Lighting.hlsl:215-216`; `DistantTree.hlsl:79-80`). That is intentional:
+this is a producer-identification probe, not a per-type selection test. World Z
+at `0.2` is the alternative coherence sanity check; it is not the main test.
+
+Stand still in the Whiterun tundra with clear weather (`sw 0010199f`) and the
+camera at a fixed position/rotation. Record:
+
+- **Terrain LOD:** does the surface move as one piece, or does a grey shell stay
+  behind?
+- **Object LOD (rocks/mountains):** same question.
+- **Tree LOD:** same question. The DistantTree fix should make this coherent; if
+  it does not, `b6` is not bound in the DistantTree depth pass.
+
+Interpretation:
+
+| Terrain/object result | Tentative conclusion |
+| --- | --- |
+| Moves as one piece, no grey | Lighting/DistantTree depth and color are coherent for that type. Tune the math. |
+| Moves in color, grey shell at old position | The grey producer is **not** the Lighting/DistantTree color VS. Go to Probe B. |
+| Nothing moves | `b6`/`Enable` is not reaching the VS at all in this configuration; check the build, cache, and feature boot state; then use RenderDoc. |
+
+Do **not** change other controls during this run.
+
+### 3.3 Probe B — Utility depth clip-X (shader-only, restart required)
+
+`package/Shaders/Utility.hlsl` now has a temporary `HC_PROBE` block gated to
+`RENDER_DEPTH && !RENDER_SHADOWMAP && (LOD_LANDSCAPE || LOD_OBJECT || TREE_ANIM)`.
+It shifts `vsout.PositionCS.x += 0.25 * w`, so it moves only the Utility
+depth-pass LOD/tree geometry. The block is validated with `HC_PROBE`
+(446 variants, 0 warnings/errors).
+
+In-game:
+
+1. Set `Enable = off`, `DebugVertexMode = none`.
+2. Set `Advanced → Shader Defines = HC_PROBE`.
+3. Restart the game. If the Utility shaders still load from disk, delete
+   `overwrite/ShaderCache/Utility` and restart again.
+
+Because HC is off, Lighting/DistantTree do not move. Outcomes:
+
+- Grey shifts/moves with the Utility depth → Utility owns the depth/G-buffer path
+  (Claude's H4). Fix Utility;
+- Nothing changes → Utility is not the producer. Go to RenderDoc;
+- The world becomes unreadable → narrow the gate (`LOD_LANDSCAPE` only, then
+  `LOD_OBJECT`, then `TREE_ANIM`) and repeat.
+
+Reset: `Shader Defines = ""`, restart; clear `ShaderCache/Utility` if needed.
+
+### 3.4 RenderDoc capture (the number that settles it)
+
+Capture two frames at the same camera/weather: one with HC off, one with the
+probe under investigation on. Use the Renderdoc developer feature or attach
+RenderDoc to the process.
+
+For the same terrain/rock draw, compare the depth-prepass draw, the deferred
+G-buffer draw, and the color draw:
+
+- Which VS is bound? (shader key/name)
+- Is `b6` bound at draw time? What does `Enable` read as?
+- What is `SV_Position.z` at the same vertex?
+- What is the depth-buffer value at the same pixel?
+- Use pixel history on one grey pixel and one moved pixel.
+
+Write the answers down. "It looks grey" is not a finding; "the depth draw used
+VS X with b6 = 0 while the color draw used VS Y with b6 = 1" is.
+
+If RenderDoc shows the depth/G-buffer draw is not using the custom VS at all,
+do **not** keep editing the shader. Hook the pass that actually writes it
+(`BSBatchRenderer::RenderPassImmediately` is already hooked by
+`TerrainBlending`, `InteriorSun`, and `LightLimitFix`; follow one of those
+patterns) or fall back to a Terrain-Blending-style separate depth target.
+
+---
+
+## 4. Phase 1 — fix the failing pass, then stop
+
+Only after Phase 0 tells you which pass is wrong:
+
+- **If `b6` is unbound at the depth/G-buffer draw:** bind it as late as possible
+  at that actual draw. `src/Hooks.cpp:252-266` binds in
+  `BSLightingShader_SetupGeometry` after `func()`; confirm that hook is on the
+  failing path. `BSShader_BeginTechnique` alone is too early.
+- **If the depth pass uses a different shader:** hook the pass or render a
+  dedicated warped depth target (see `features/Terrain Blending/` —
+  `DepthBlend.hlsl` and `TerrainBlending.cpp:259-420`).
+- **If the depth is correct but the composite is wrong:** the grey is the
+  deferred composite/background, and the fix belongs in the G-buffer/composite
+  path, not in the VS.
+
+**Definition of done for Phase 1:** a constant world-Z probe on LOD terrain,
+object LOD, and tree LOD produces one coherent surface with **no grey shell and
+no z-fighting** from a fixed camera. Transparent/moss overlays may still differ;
+note them separately.
+
+---
+
+## 5. Later phases (gated on Phase 1)
+
+Do not start these until Phase 1 passes.
+
+1. **Math reintroduction:** parabolic only, hue off, one LOD type at a time.
+   Then spherical vertical, then spherical full (XZ contraction). Keep the
+   constant probe available as a control.
+2. **Trees and motion:** base-anchor translation, grass-style sample clamp
+   (`lerp` toward the instance origin, as in
+   `features/Grass Collision/Shaders/GrassCollision/GrassCollision.hlsli:138-174`),
+   previous-position displacement, TAA ghosting check.
+3. **Production tuning:** cutoff/elevation/sea level, LOD seam, culling,
+   full-feature baseline.
+4. **Cleanup:** remove/gate debug hue and probes, bump the feature `.ini` only if
+   the settings struct changed, update `design.md`/`architecture.md`.
+
+Estimate for Phases 0–4: **4–7 focused sessions** (low confidence; the
+calibration tool has no reference class, n=0). The main uncertainty is whether
+the depth pass will accept the custom VS at all.
+
+---
+
+## 6. Build / deploy / test loop
+
+### CI quota (2026-11-10)
+
+- The repo is private, so Actions minutes are billed (Windows runners are 2x).
+- November usage so far: ~2,141 billed minutes. The last full Fork Build
+  (`ea9930e6`, run `42017811683`) cost **159.1 billed minutes** (95.8 C++ + 63.2
+  shader).
+- The plan's remaining quota is unknown (the `gh` token lacks the `user` scope).
+  Check `https://github.com/settings/billing` → Actions, or:
+  `gh auth refresh -h github.com -s user` then
+  `gh api /users/PipettingBeaver/settings/billing/actions`.
+- **Do not run a Fork Build unless the quota is confirmed.**
+- `gh run download <run-id>` costs 0 minutes. The `ea9930e6` artifact is still
+  available (58.7 MB, not expired).
+
+### Local shader validation (working 2026-11-10)
+
+`hlslkit` + Wine + the installed `fxc.exe` compiles the CI shader matrix locally:
+
+- `DistantTree.hlsl`: 9 variants, **0 warnings/errors** (~8 s).
+- `Lighting.hlsl`: 535 variants, **0 warnings/errors** (~29 s).
+
+Setup in `/tmp/opencode` (disposable): `hlslkit-venv`, the `fxc-wine` wrapper,
+and an `aio/Shaders` copy of `package/Shaders` + `features/*/Shaders`. The
+wrapper translates `/Fo` and `/I` paths to Wine `Z:` paths. Recreate it if
+`/tmp` is cleared. Use this for the fast loop; no CI.
 
 ```bash
+# Download the CI artifact (no Actions minutes)
 PATH="$HOME/.local/bin:$PATH"
 gh run download <run-id> -R PipettingBeaver/horizontal-curvature-skyrim \
   -n dist-artifacts -D /tmp/opencode/cs-dist-new
 
+# Deploy
 <REPO_ROOT>/tools/deploy-aio.sh \
   /tmp/opencode/cs-dist-new/CommunityShaders_AIO-*.7z
 
-rm -rf "<MO2_INSTANCE>/overwrite/ShaderCache"
+# Invalidate only what changed
+cache="<MO2_INSTANCE>/overwrite/ShaderCache"
+rm -rf "$cache/Lighting" "$cache/DistantTree"
 ```
 
-Confirm the DLL build in `CommunityShaders.log`:
+- After editing a `.hlsli` include, either touch the including `.hlsl` files or
+  delete their cache directories. `Skip Unchanged Shaders` only compares
+  top-level `.hlsl` mtimes.
+- Full `rm -rf overwrite/ShaderCache` only for shared includes, feature-set
+  changes, or a stubborn stale cache.
+- Confirm the DLL in `CommunityShaders.log`:
+  `Community Shaders 1.9.0 | branch: horizontal-curvature | describe: <hash>`.
+- Launch: MO2 instance `<MO2_INSTANCE>`,
+  profile `HorizontalCurvatureTest`, `launch-hctest.bat`. Settings backup
+  `SettingsUser.json.bak.hctest`.
+- Restore normal play with `launch-full.bat` and
+  `SettingsUser.json.bak.fullfeatures`.
+- Log: `.../compatdata/489830/pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/SKSE/CommunityShaders.log`.
+- Developer Mode: CS menu → Settings → Advanced. Shader blocking: Advanced →
+  Enable Shader Blocking → Active Shaders table. Performance Overlay: F10.
+
+---
+
+## 7. Evidence template (use for every meaningful run)
 
 ```text
-Community Shaders 1.9.0 | branch: horizontal-curvature | describe: 846a2f4...
+Date:
+Build / describe:
+Shader cache cleared:
+Profile / settings backup:
+Feature boot state:
+Camera / worldspace / weather:
+HC controls (all values):
+Apply flags:
+DebugHue / DebugColor:
+Strength / cutoff / softness / raise:
+Probe / vertex mode:
+Terrain LOD result:
+Object LOD result:
+Tree LOD result:
+Grey shell:
+Z-fighting:
+Shader keys observed:
+b6 bound at depth draw? (RenderDoc):
+Depth value vs VS SV_Position.z:
+Interpretation:
+Next single variable:
 ```
 
-`describe:` identifies the DLL/commit, not a manually edited deployed shader.
+---
 
-## 2. Game / MO2 state
+## 8. Stop conditions / what not to do
 
-- Active clean 1.5.97 install:
-  `<GAME_MOUNT>/game/SkyrimSE-1.5.97`
-- Previous Best of Both Worlds copy:
-  `<GAME_MOUNT>/game/SkyrimSE-1.5.97-bobw`
-- Steam install: `~/.local/share/Steam/steamapps/common/Skyrim Special Edition` (1.7.104)
-- Steam 1.5.97 depots downloaded under:
-  `~/.local/share/Steam/ubuntu12_32/steamapps/content/app_489830`
-- MO2: `<MO2_INSTANCE>`
-- Test profile: `HorizontalCurvatureTest` (copy of `horizon`); enabled mods are
-  Community Shaders Dev, Address Library, SSE Engine Fixes + preloader.
-- Test CS settings: `SettingsUser.json.bak.hctest` — every optional feature
-  disabled except `HorizontalCurvature`, `Post Processing Mode = Vanilla`.
-  This is the minimal CS setup for fast shader compiles.
-- Normal/full baseline: `SettingsUser.json.bak.fullfeatures` with profile
-  `horizon`. CS settings live in the shared overwrite, not in the MO2 profile;
-  switching profile alone does not switch CS settings.
-- Use `launch-hctest.bat` and `launch-full.bat` in the MO2 instance root to
-  switch profile and settings together.
-- Fallback if the all-off `Vanilla` profile looks wrong:
-  `SettingsUser.json.bak.hctest-pipeline` keeps `PostProcessing`,
-  `LinearLighting`, and `HDRDisplay`, with `PostProcessing` mode.
-- Do **not** disable all optional features while leaving Post Processing mode at
-  `PostProcessing`: that produced the grey/grainy world.
-- The clean install has **no CC/AE content**. The full 1,096-mod `StableList` will
-  need CC content + BEES (and a compatible 1.5.97/1.7 data setup) later.
+- Do not run another `ApplyToAllLighting` + `DebugHue` matrix. It cannot
+  distinguish a depth mismatch from a color-path mismatch.
+- Do not add new settings or UI controls to "isolate" the grey.
+- Do not change the curvature math, cutoff, or modes until Phase 1 passes.
+- Do not trust a launch that says `Using disk cache` after a shader edit.
+- Do not test with the `Main_RenderDepth` / `Main_RenderShadowmasks` skips
+  present.
+- Do not conclude "the LOD defines are missing" without dumping the actual
+  compiled defines/keys.
+- Do not treat the clip-space X shift as curvature; it is screen-space and
+  rotation-dependent.
+- Do not edit `design.md` conclusions to match a test that has not passed.
 
-### Important install facts
+---
 
-- `Skyrim - Patch.bsa` is mandatory for 1.5.97 and is present in the clean install.
-- Engine Fixes preloader `d3dx9_42.dll` must be in the game root.
-- `Skyrim.ccc` is disabled in the clean install.
-- The clean install was built because the Best of Both Worlds data mix caused
-  New Game / `coc` infinite loads.
-- The launcher batch now uses
-  `start "" "%~dp0ModOrganizer.exe" %*`
-  so the wrapper `cmd.exe` exits. The current session predates this change.
-  If MO2 closes when the wrapper exits next time, restore `launch-mo2.bat.bak`.
-- `coc` from the main menu worked on the clean install (`coc Riverwood`).
+## 9. Open questions
 
-## 3. What is actually deployed
+1. **What is the "Open Shaders grass effect" the user means?** I verified that
+   the current `open-shaders` feature list has no curvature/space-bending
+   feature; the grass effect there is `Grass Collision`. If a different pack is
+   meant, get the exact name/link before borrowing its approach.
+2. **Is the grey the background/fog or a second representation?** Phase 0's
+   depth-vs-VS comparison answers this.
+3. **Does the depth pass bind `FrameBuffer::CameraViewProj`?** If not, the
+   DistantTree fix needs the fallback described in §3.1.
+4. **What is the actual user-visible goal for full-detail objects?** The design
+   keeps full-detail cells out of scope. "Full level of detail objects" should
+   mean all LOD tiers, not loaded-cell geometry. Confirm before expanding scope.
 
-- Deployed CI AIO: commit `846a2f4b`, feature version `0.1.0`.
-- Proper `Lighting.hlsl`/`DistantTree.hlsl` are deployed: no `#error` and no
-  hardcoded Z/NDC diagnostics.
-- The C++ `PerFrame` is now 64 bytes (16 fields) and matches the expanded `b6`
-  `HorizontalCurvatureSettings` layout. Do not mix these shaders with the old
-  32-byte DLL; the CI AIO packages both.
-- Feature is enabled at boot; runtime `Enable` is on; test settings: cutoff `0`,
-  k `5e-6`, elevation `0`, debug tint on.
-- The current active CS settings are the reduced `hctest` set; the full baseline
-  is backed up, not active. `Use FileWatcher` is on for the reduced profile.
-- Reduced profile launched at 00:31; cache rebuilt (4,098 files). In-game result:
-  debug colors/hue/strength/cutoff work, but Enable and geometry do nothing.
-- **Root cause confirmed:** `FeatureData` b6 was bound only to PS/CS, not VS.
-  `Lighting`/`DistantTree` VS read zero settings while PS debug worked.
-  `src/VanillaBinding.cpp` now binds b6 to VS; this is **uncommitted and not in
-  the deployed DLL**, so the current game still cannot move geometry.
-- The repo working tree still has uncommitted `PROGRESS.md`, `RESUME.md`,
-  Enable-guard shader edits, and the `VanillaBinding.cpp` fix; none are in the
-  CI artifact.
+---
 
-Architecture: `docs/horizontal-curvature-architecture.md`.
+## 10. Definition of done for this milestone
 
-Deployed mod path:
+> A hardcoded world-space drop applied to LOD terrain, object LOD, and tree LOD
+> produces one coherent surface with no grey shell and no z-fighting from a
+> fixed camera, and RenderDoc confirms the depth/G-buffer and color draws use the
+> same warped vertex position.
 
-`<MO2_INSTANCE>/mods/Community Shaders Dev`
-
-## 4. Root causes already fixed
-
-- Empty `horizon/skyrimprefs.ini` caused startup crashes.
-- Engine Fixes preloader was inside a mod instead of the game root.
-- Missing `Skyrim - Patch.bsa`.
-- Best of Both Worlds cell loading was broken; clean 1.5.97 data fixed it.
-- Four CS shader failures:
-  `X4578: cbuffer bank 12 used more than once`
-  - Lighting now reads `CameraPosAdjust` through the existing `VS_PerFrame` b12 view.
-  - DistantTree passes `FrameBuffer::CameraPosAdjust` explicitly.
-- The `cmd.exe` launcher wrapper was fixed via `start`.
-- **Stale shader cache was the main false negative.** CS loaded old compiled
-  shaders (`Using disk cache`) while live HLSL edits were ignored. For fast
-  iteration, delete only `ShaderCache/Lighting` and `ShaderCache/DistantTree`,
-  or enable `Use FileWatcher`; full-clear only for shared includes, feature-set
-  changes, or when selective invalidation fails. `Skip Unchanged Shaders` only
-  compares top-level `.hlsl` mtimes, so touch/delete after `.hlsli` edits.
-- A temporary **clip-space horizontal X shift** visibly moved LOD geometry and
-  proved the vertex block executes. It was screen-space and rotated with the
-  camera, so it is not curvature. The later vertical Y/world-Z tests were
-  corrupted by stale cache / disabled-at-boot / no-world state.
-- `#error` diagnostics confirmed `HORIZONTAL_CURVATURE` in Lighting VS and
-  DistantTree VS/PS; they were removed after the test.
-- **Missing VS `b6` binding** was the final geometry blocker: PS/CS got
-  `FeatureData`, VS did not, so `Enable` read zero in the vertex shaders.
-  `src/VanillaBinding.cpp` now calls
-  `VSSetConstantBuffers(6, 1, &featureDataCB)`. Pending CI build/deploy.
-- **Depth-prepass binding issue:** shader blocking isolated the static grey
-  layer to `Lighting:Vertex:HORIZONTAL_CURVATURE VC`; no Pixel shader removes
-  it. `Renderer::ResetState`/`SetVertexShader` binding was too early.
-  `BSShader::BeginTechnique` and `BSLightingShader_SetupGeometry` now bind b6 as
-  late as possible. Pending CI.
-
-## 5. New controls in 615568bd
-
-- **Enable Effect**: runtime switch; shader returns no drop when off.
-- **Debug Colors**: tint affected LOD.
-- **Debug Hue**: hue slider. Moving it is the positive test that `b6` settings
-  reach the shader.
-- **Inner Radius Cutoff**: minimum `0`, default `1000` for exaggerated testing.
-- Debug tint is driven by the shared `b6` buffer, not hardcoded values.
-- Temporary hardcoded Z/NDC diagnostics are removed from the repo version.
-
-### Lab-build controls (runtime, no recompile)
-
-- `CurvatureMode`: Parabolic / Spherical vertical / Spherical full (XZ shrink).
-- `TreeMode`: Per-vertex / Base anchor.
-- `ApplyToAllLighting`: test-only bypass of the Lighting LOD guard.
-- `ApplyTerrain`, `ApplyObjects`, `ApplyTrees`: isolate LOD categories.
-- `DebugVertexMode`: None / Clip X / Clip Y / World Z; proves the VS path.
-- **Run Old Positive Control** button: sets `Enable`, Clip X, amount `0.25` —
-  the historical horizontal shift that visibly moved LOD.
-- `DebugVertexAmount`: clip fraction, or 10,000 game units for World Z.
-- `CutoffSoftness`: smooths the deadzone edge to test seams.
-- `Raise`: inverts vertical displacement for z-fighting diagnostics.
-- Existing `Enable`, debug tint/hue, strength, cutoff, elevation, sea level.
-
-## 6. Current unknowns / decision tree
-
-### Already established
-
-- `b6` settings reach the **pixel** shader: Debug Hue changes the LOD tint.
-- `HORIZONTAL_CURVATURE` is defined in Lighting VS and DistantTree VS/PS
-  (`#error` result).
-- The clip-space horizontal X shift moved LOD geometry, proving VS execution.
-- The feature must be enabled at boot for the define to exist; runtime `Enable`
-  is a separate uniform.
-- The stale cache was the reason live shader edits did not take effect.
-- **VS settings were missing:** b6 was not bound to VS. The one-line
-  `VanillaBinding.cpp` fix is pending CI.
-- **Still unproven:** the proper world-space Z drop moving terrain/object/tree
-  LOD in-world after the VS b6 fix is deployed.
-
-### If hue works but terrain/mountain still does not move
-
-1. Use per-LOD-type debug colors to identify the mountain:
-   - terrain LOD: `LODLANDSCAPE` / `LODLANDNOISE`
-   - object LOD: `LODOBJECTS` / `LODOBJECTSHD`
-   - tree LOD: `DistantTree`
-   - full-detail cells: no debug tint
-2. Check the CS log for shader compile errors for Lighting LOD.
-3. The clip-space shift test has already been done:
-   - The temporary horizontal X shift moved LOD, proving VS execution.
-   - It is screen-space and not suitable for curvature; do not re-add it unless
-     re-validating a new shader path.
-   - If the world-space drop still does not move after a genuine cache clear,
-     suspect the `worldPosition`/`ViewProj` recompute or the LOD permutation.
-4. Compare Lighting vs DistantTree:
-   - Lighting uses `ViewProj`; DistantTree uses `FrameBuffer::CameraViewProj`.
-   - Verify `worldPosition` is camera-relative and that `viewPos = mul(ViewProj, worldPosition)`
-     is the correct recompute.
-5. Check the engine's built-in terrain LOD lowering:
-   - `LodLandscape::AdjustLodLandscapeVertexPositionMS`
-   - the `vsout.Position.z` LOD nudge
-   - object/tree LOD does not receive the same offset automatically.
-6. Check terrain LOD mesh resolution/quads. Large LOD triangles cannot show a
-   smooth curve; higher-resolution xLODGen LOD or tessellation may be needed.
-7. Check culling/pop-in; curved vertices may leave the original AABB frustum.
-
-### If both move but trees/terrain float or shear
-
-- Apply tree warp at the **base/anchor** for a rigid translation, not per-vertex.
-- Sample the same `f` on terrain at the tree base.
-- Coarse terrain triangle chords underestimate/overestimate the exact warp at the
-  tree base. Mitigate with a small sink/overshoot, higher LOD resolution, or
-  terrain chord correction.
-- Check the engine's baked terrain-LOD lowering.
-- Check billboard base offsets vs actual tree origin.
-
-### If FOV/rotation changes the result
-
-- The world warp must be in **unrotated camera-relative space**.
-- Remove screen-space/NDC debug effects before judging.
-- A world-space drop is FOV-independent; only its apparent pixel size changes.
-- If the relationship still changes, suspect a different matrix/space in one shader.
-
-## 7. Cross-engine research
-
-### Minecraft / Bliss Shader / Distant Horizons
-
-- Curvature should be applied in **unrotated view/camera-relative space**.
-  Applying after camera rotation causes unnatural warping when rotating.
-- Bliss `PLANET_CURVATURE` applies the same function to **all solid, translucent,
-  Distant Horizons LOD, and shadow** vertex shaders:
-  ```glsl
-  float curvature = length(worldpos) / (16 * 8);
-  worldpos.y -= curvature * curvature * CURVATURE_AMOUNT;
-  ```
-  Its `worldpos` is camera-relative. Everything that should stay coherent uses
-  the same function; objects/VFX without it float.
-- Distant Horizons uses true spherical curvature:
-  ```glsl
-  float localRadius = earthRadius + vertexY;
-  float phi = length(vertexWorldPos.xz) / localRadius;
-  vertexWorldPos.y += (cos(phi) - 1.0) * localRadius;
-  vertexWorldPos.xz *= sin(phi) / phi;
-  ```
-  `earthRadius = 6371000 / ratio`; ratio 100 ≈ 63.7 km radius.
-- When curvature is enabled DH limits LOD quad width
-  (`MAX_QUAD_WIDTH_FOR_EARTH_CURVATURE`) so large flat quads are subdivided.
-- DH disables curvature for ratio values between -1 and 1; 0 means flat.
-- DH curvature is a visual shader effect; it does not move blocks physically.
-
-### Unity Curved World
-
-- Per-material vertex transformation with a shared pivot (usually camera).
-- Global parameters are set once; all materials must use the curved shaders.
-- Objects/VFX not using the shader float when the camera moves.
-- Culling must be adjusted; curved geometry can move into/out of the original frustum.
-- Mesh vertex density matters; a low-vertex plane does not bend smoothly.
-- Parabola is cheaper but distorts tall objects and constrains camera placement;
-  spiral/spherical variants are used for 360° observation.
-
-### Floating props / terrain LOD
-
-- Near field: props on slopes float if their flat base is seated on one sample;
-  fix by conforming the base or sinking it slightly.
-- Far field: coarse terrain chords sag below the exact height; props sampled at
-  exact height float. Fix by lifting terrain vertices by chord excess or sinking props.
-- This is directly relevant to tree LOD vs coarse terrain LOD under a quadratic warp.
-
-### Skyrim-specific
-
-- Skyrim is mechanically flat; there is no native curvature.
-- DynDOLOD notes that terrain LOD is lowered in the distance by a baked shader
-  to counter z-fighting with object LOD.
-  `LodLandscape::AdjustLodLandscapeVertexPositionMS` and the `vsout.Position.z`
-  nudge are visible in `Lighting.hlsl`.
-- Object/tree LOD does not automatically get the same lowering, which can
-  decouple terrain and trees even before our warp.
-- Terrain LOD is generated as `.btr`; object LOD `.bto`; tree LOD uses DistantTree.
-- DynDOLOD does not create/update terrain LOD; use xLODGen for terrain LOD.
-
-## 8. Implementation tricks / checklist
-
-0. Invalidate only affected shaders: delete `ShaderCache/Lighting` and
-   `ShaderCache/DistantTree`, or enable `Use FileWatcher`. Never trust a launch
-   that says `Using disk cache` after a source change; touch the top-level
-   `.hlsl` after editing an `.hlsli`, and full-clear as a fallback.
-1. Keep warp in camera-relative, unrotated world space.
-2. Apply the same function to all relevant LOD passes (terrain, object, tree,
-   and shadows if they overlap).
-3. Do not use per-object center scaling; use a shared height field.
-4. For trees, use the base/anchor for rigid translation; sample the same function
-   on terrain at the base.
-5. For terrain/object LOD, per-vertex warp is correct, but coarse triangles need
-   higher LOD resolution or tessellation.
-6. Try true spherical vs parabolic:
-   - parabola: `y -= k * max(0, d - R)^2`
-   - sphere: DH formula above; pulls XZ inward too.
-7. Account for the engine's baked terrain LOD lowering.
-8. Remove screen-space/NDC debug before judging FOV/rotation.
-9. Use per-LOD-type debug colors/hue to identify what is actually warped.
-10. Arbitrary sub-mesh selection is not possible with a pure height field; use
-    shader/pass/object-type selection or vertex masks.
-11. Culling: test pop-in; consider conservative bounds/camera culling.
-12. Motion vectors/TAA: warp previous positions too; test ghosting.
-13. Water/sky: separate passes; fog/horizon handling.
-
-## 9. Full test plan
-
-### Transform / space
-
-- Fixed camera, rotate 360° at constant FOV.
-- Translate camera only, no rotation.
-- FOV 60 / 90 / 120 at the same position and rotation.
-- Aspect ratio 16:9 and 21:9.
-- Camera heights: sea level, Whiterun tundra, High Hrothgar, lighthouse.
-- Compare world-space drop vs screen-space appearance.
-
-### LOD relationship
-
-- Debug-color terrain LOD, object LOD, tree LOD, full-detail separately.
-- Multi-part mountains; city LOD; watchtower roofs vs walls.
-- Tree base vs canopy on a slope.
-- Billboard tree LOD vs ultra-tree/object LOD.
-- Full-detail/LOD boundary; cutoff below/at/above the transition.
-- Vanilla LOD vs xLODGen/DynDOLOD-generated LOD.
-- Test engine’s terrain LOD lowering on/off where possible.
-
-### Selection / scope
-
-- Include/exclude whole LOD categories.
-- Exclude object types (buildings, rocks, water, trees).
-- Confirm full-detail cells, actors, physics and local raycasts are untouched.
-- Test merged mountain+building LOD; document that sub-mesh exclusion needs masks.
-
-### Visual correctness
-
-- Cracks/seams between LOD tiles and LOD levels.
-- Z-fighting, popping, culling.
-- Floating trees, terrain skirts, buried trees.
-- Water horizon, sky/fog disconnect, distant mountain silhouettes.
-- TAA on/off, motion vectors/ghosting, motion blur.
-- First-person/third-person, world map, interiors.
-- Other worldspaces: Solstheim, Forgotten Vale, Blackreach (no LOD).
-- Weather/time of day, dynamic resolution, HDR, upscaling.
-
-### Performance / regression
-
-- Frame time with effect on/off at low/high `k`.
-- Shader compile/cache behavior when toggling features.
-- `Enable Effect` off is a strict no-op.
-- Shader cache invalidation when shaders change.
-
-### Synthetic / automated
-
-- A test grid mesh with markers at known coordinates.
-- A tall pole/flag on a hill to compare tree base vs terrain.
-- RenderDoc A/B capture with effect on/off at identical camera.
-- Screenshot comparisons across FOV/camera height/LOD types.
-- Debug colors per pass + hue positive test.
-
-### Content / integration
-
-- Clean 1.5.97 base first.
-- Then CC content + BEES and the full `StableList`.
-- Re-enable only needed CS features; re-check shader cache.
-- SE/AE targeting (the CI build is ALL).
-
-## 10. Parameters / variables
-
-- `CurvatureStrength` (k): currently default `5e-6`, max `5e-6` in UI.
-- `InnerRadiusCutoff`: testing `0`/`1000`; production should exceed the
-  full-detail/LOD transition.
-- `ElevationScaleFactor`: horizon extension vs camera height.
-- `SeaLevelOffset`: worldspace baseline.
-- `DebugHue`, `DebugColor`.
-- FOV, camera height, worldspace, LOD distances:
-  `fBlockLevel0Distance`, `fBlockLevel1Distance`, `fBlockMaximumDistance`,
-  `fTreeLoadDistance`, `fSplitDistanceMult`.
-- TAA/upscaling/dynamic resolution/HDR.
-- Vanilla vs generated LOD; CC/BEES.
-
-## 11. Cleanup before shipping
-
-- Remove or ship-gate debug hue/colors.
-- Decide parabola vs true sphere; document.
-- Decide tree anchor vs per-vertex warp.
-- Bump the feature `.ini` version after validation.
-- Update `design.md`/README with final behavior and constraints.
-- Re-enable desired CS features and re-test.
-- Test full mod list/CC/BEES and performance.
-- Commit/push final changes; don’t push while CI is in progress.
-
-## 12. Links
-
-- Minecraft World Curvature / spherical view-space discussion:
-  https://www.minecraftforum.net/forums/mapping-and-modding-java-edition/minecraft-mods/1272365-1-3-1-glsl-shaders-dof-bump-mapping-waving-wheat?page=246
-- Distant Horizons source:
-  https://github.com/GTNewHorizons/DistantHorizons
-- Bliss Shader:
-  https://github.com/X0nk/Bliss-Shader
-- Unity Curved World docs:
-  https://amazing-assets.gitbook.io/curved-world/
-- Curved World floating VFX discussion:
-  https://discussions.unity.com/t/i-need-help-with-logic-for-a-game-jam-feature/865631
-- Floating props / terrain chord study:
-  https://csarko.sh/research/floating-props-on-procedural-terrain
-- DynDOLOD terrain LOD lowering note:
-  https://dyndolod.info/Help/Terrain-LOD-and-Water-LOD
+Record the estimate/actual pair when this milestone closes. Keep full-detail
+cells, water, and sky out of scope for this milestone.

@@ -164,7 +164,8 @@ DebugVertexAmount, CutoffSoftness, pad1, pad2
   `worldPosition` and `previousWorldPosition`, then recomputes
   `viewPos = mul(ViewProj, worldPosition)`.
 - `DistantTree.hlsl` VS: warps both world positions and recomputes with
-  `FrameBuffer::CameraViewProj`; skipped in `RENDER_DEPTH`.
+  `FrameBuffer::CameraViewProj`. The displacement runs before the
+  `RENDER_DEPTH` split, so the depth permutation uses the same warped position.
 - Pixel debug tint is guarded by `!defined(RENDER_DEPTH)` and the runtime
   `Enable`/`DebugColor` settings. Terrain hue `0.0`, object `+0.33`, tree `+0.66`.
 - LOD world positions are already camera-relative; distance is

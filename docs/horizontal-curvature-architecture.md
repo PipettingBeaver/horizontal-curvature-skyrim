@@ -140,8 +140,9 @@ viewPos = mul(ViewProj, worldPosition);
 File: `package/Shaders/DistantTree.hlsl`.
 
 - Include guard: `#if defined(HORIZONTAL_CURVATURE)`.
-- Vertex path runs only when `RENDER_DEPTH` is not defined; the depth pass has
-  `Depth` rather than `WorldPosition`.
+- Vertex path runs before the `RENDER_DEPTH` split. The depth permutation now
+  applies the same displacement; the color permutation still carries
+  `WorldPosition`/`PreviousWorldPosition`.
 - Mutate `worldPosition` and `previousWorldPosition`, then recompute with
   `FrameBuffer::CameraViewProj`.
 - `TreeMode = BaseAnchor` samples the drop at the instance origin and translates

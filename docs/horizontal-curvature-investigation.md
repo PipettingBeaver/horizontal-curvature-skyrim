@@ -345,6 +345,47 @@ Next in-game check:
    different shader/path.
 4. Use `ToggleZPrepassOutput` as a view only.
 
+## Build 0.5.0 first observations
+
+- `ApplySkinned`: stops tree z-fighting but turns nearby trees fully grey.
+- Skinned only, Raise/strength 0: z-fighting; any nonzero displacement makes the
+  trees disappear.
+- Full-detail objects: nearby tundra rocks and mossy cliffs turn grey; with Raise
+  only the moss texture moves upward, while the opaque parts disappear into grey.
+- Full-detail landscape behaves the same way.
+- The per-type terrain LOD switch does not move distant terrain; `Apply to All
+  Lighting` is still required. This confirms the LOD type defines are not present
+  in the VS permutations, so the LOD sub-flag logic falls through.
+
+This remains a depth/prepass mismatch on moved opaque geometry. Transparent
+decal/moss overlays remain visible because they do not rely on that depth the
+same way.
+
+### Finding Active Shaders
+
+Active Shaders is not in the Features list. Enable Developer Mode, then go to
+Settings > Advanced > Shader Debug. Enable Shader Blocking and open the Active
+Shaders table. Use the table filter/Key column; there is no separate search
+button.
+
+## Active shader keys from 0.5.0
+
+- `Lighting:Vertex:HORIZONTAL_CURVATURE VC`, descriptor `0x1`:
+  blocking turns nearby full-detail rocks into normal-map colors and does not
+  visibly change their HC response. This is the shared non-skinned Lighting VS;
+  blocking it disables geometry shading, so normal-map colors are a fallback,
+  not evidence about HC.
+- `Lighting:Vertex:HORIZONTAL_CURVATURE SKINNED TREE_ANIM VC`,
+  descriptor `0xC000003`: blocking stops tree flickering.
+- `Lighting:Vertex:HORIZONTAL_CURVATURE PROJECTED_UV VC`,
+  descriptor `0x8001`: blocking makes distant rocks show normal-map colors.
+
+Testing rule: use strength `0` first to map a key to its object without
+displacement. Then set a low nonzero strength and block the same key. If both
+the moving object and grey copy disappear, the key is involved in the moving
+path. If the moving part disappears but grey remains, the grey comes from a
+separate depth/pass.
+
 ## Runtime settings observed
 
 Test profile `HorizontalCurvatureTest/skyrimprefs.ini`:
@@ -560,6 +601,8 @@ To recover normal rendering:
 - Use the correct z-prepass hook, not the 100421 `Main_RenderDepth` call.
 
 ## Related files
+
+- `docs/horizontal-curvature-shader-keys.md` — active shader key log.
 
 - `docs/horizontal-curvature-architecture.md`
 - `design.md`

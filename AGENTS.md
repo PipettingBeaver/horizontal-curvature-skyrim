@@ -116,3 +116,13 @@ feature. Read these before changing or testing it:
 - The **Run Old Positive Control** button restores the historical horizontal
   `0.25 * w` clip-X shift. Use it first: it proves the VS path independently of
   the curvature math.
+
+## Path anonymization (public repository)
+
+All absolute local paths in docs and scripts are placeholders: `<HOME>`,
+`<PROJECTS_DIR>`, `<REPO_ROOT>`, `<DATA_MOUNT>`, `<GAME_MOUNT>`,
+`<MO2_INSTANCE>`, `<WINDOWS_MOUNT>`. Substitute your own values when using
+them. Do not commit real filesystem paths, personal emails, or other
+identifying details; the maintainer's real mapping lives in the untracked
+`LOCAL-PATHS.md`. Commit hashes cited in older lab notes predate the
+2026-11-11 history anonymization and may differ from current hashes.

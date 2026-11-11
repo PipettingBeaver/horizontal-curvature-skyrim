@@ -4,12 +4,19 @@
 # Usage:
 #   tools/deploy-aio.sh <CommunityShaders_AIO-*.7z|*.zip> [mod-dir]
 #
-# The default mod-dir is the local SSE 1.5.97 MO2 instance. The script does not
-# edit modlist.txt; enable "Community Shaders Dev" in MO2 after the first copy.
+# The mod-dir comes from argument 2 or $HC_MO2_MOD_DIR. The repository is
+# published with anonymized paths, so the local default is not checked in;
+# keep it in the untracked LOCAL-PATHS.md. The script does not edit
+# modlist.txt; enable "Community Shaders Dev" in MO2 after the first copy.
 set -euo pipefail
 
 ARCHIVE="${1:-}"
-MOD_DIR="${2:-<MO2_INSTANCE>/mods/Community Shaders Dev}"
+MOD_DIR="${2:-${HC_MO2_MOD_DIR:-}}"
+
+if [[ -z "$MOD_DIR" ]]; then
+	printf 'no mod dir: pass it as argument 2 or set HC_MO2_MOD_DIR (see LOCAL-PATHS.md)\n' >&2
+	exit 1
+fi
 
 if [[ -z "$ARCHIVE" || ! -f "$ARCHIVE" ]]; then
 	printf 'usage: %s <CommunityShaders_AIO archive> [mod-dir]\n' "$0" >&2
