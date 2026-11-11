@@ -66,14 +66,13 @@ VS_OUTPUT main(VS_INPUT input)
 	float4 finalModelPosition = float4(input.InstanceData1.xyz + adjustedModelPosition.xyz, 1.0);
 	float4 viewPosition = mul(WorldViewProj, finalModelPosition);
 
-#	ifdef RENDER_DEPTH
-	vsout.Depth.xy = viewPosition.zw;
-	vsout.Depth.zw = input.InstanceData2.zw;
-#	else
+	// Horizontal Curvature must run before the depth/color split so the depth
+	// permutation and the color permutation agree on the vertex position.
 	float4 worldPosition = mul(World, finalModelPosition);
 	float4 previousWorldPosition = mul(PreviousWorld, finalModelPosition);
+	bool hcApplied = false;
 
-#		if defined(HORIZONTAL_CURVATURE)
+#	if defined(HORIZONTAL_CURVATURE)
 	const uint hcFlags = SharedData::horizontalCurvatureSettings.Flags;
 	const bool hcApplyTree = (hcFlags & HC_FLAG_APPLY_TREES) != 0;
 	if (SharedData::horizontalCurvatureSettings.Enable != 0 &&
@@ -90,17 +89,34 @@ VS_OUTPUT main(VS_INPUT input)
 				worldPosition.xy = worldPosition.xy * HorizontalCurvature::ComputeXZScale(worldPosition.xy, FrameBuffer::CameraPosAdjust.z);
 				previousWorldPosition.xy = previousWorldPosition.xy * HorizontalCurvature::ComputeXZScale(previousWorldPosition.xy, FrameBuffer::CameraPosAdjust.z);
 			}
+			hcApplied = abs(hcDrop) > 1e-6f;
 		}
-		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 3)
+		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 3) {
 			worldPosition.z += SharedData::horizontalCurvatureSettings.DebugVertexAmount * 10000.0f;
+			hcApplied = true;
+		}
+		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 1 ||
+		    SharedData::horizontalCurvatureSettings.DebugVertexMode == 2)
+			hcApplied = true;
+	}
+#	endif
+
+	if (hcApplied)
 		viewPosition = mul(FrameBuffer::CameraViewProj, worldPosition);
+
+#	if defined(HORIZONTAL_CURVATURE)
+	if (hcApplied) {
 		if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 1)
 			viewPosition.x += SharedData::horizontalCurvatureSettings.DebugVertexAmount * viewPosition.w;
 		else if (SharedData::horizontalCurvatureSettings.DebugVertexMode == 2)
 			viewPosition.y += SharedData::horizontalCurvatureSettings.DebugVertexAmount * viewPosition.w;
 	}
-#		endif
+#	endif
 
+#	ifdef RENDER_DEPTH
+	vsout.Depth.xy = viewPosition.zw;
+	vsout.Depth.zw = input.InstanceData2.zw;
+#	else
 	vsout.WorldPosition = worldPosition;
 	vsout.PreviousWorldPosition = previousWorldPosition;
 	vsout.ViewPosition = viewPosition;

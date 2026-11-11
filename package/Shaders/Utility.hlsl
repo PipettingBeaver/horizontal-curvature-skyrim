@@ -162,6 +162,11 @@ VS_OUTPUT main(VS_INPUT input)
 	vsout.PositionCS = positionCS;
 #		endif
 
+#		if defined(HC_PROBE) && defined(RENDER_DEPTH) && !defined(RENDER_SHADOWMAP) && (defined(LOD_LANDSCAPE) || defined(LOD_OBJECT) || defined(TREE_ANIM))
+	// Temporary diagnostic: shift only the depth-pass LOD geometry in clip X.
+	vsout.PositionCS.x += 0.25 * vsout.PositionCS.w;
+#		endif
+
 #		if defined(RENDER_NORMAL)
 	float3 normalVS = float3(1, 1, 1);
 #			if defined(SKINNED)

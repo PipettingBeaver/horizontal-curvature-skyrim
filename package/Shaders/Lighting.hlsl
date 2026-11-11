@@ -214,7 +214,11 @@ VS_OUTPUT main(VS_INPUT input)
 
 	if (SharedData::horizontalCurvatureSettings.Enable != 0 &&
 	    (hcTypeEnabled || SharedData::horizontalCurvatureSettings.DebugVertexMode != 0)) {
-		const float hcCameraZ = FrameBuffer::CameraPosAdjust.z;
+#		if defined(SKINNED)
+		const float hcCameraZ = 0.0f;
+#		else
+		const float hcCameraZ = CameraPosAdjust.z;
+#		endif
 		if (hcTypeEnabled) {
 			worldPosition.z -= HorizontalCurvature::ComputeDrop(worldPosition.xy, hcCameraZ);
 			previousWorldPosition.z -= HorizontalCurvature::ComputeDrop(previousWorldPosition.xy, hcCameraZ);
